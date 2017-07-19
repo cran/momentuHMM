@@ -4,7 +4,7 @@
 \alias{distAngle}
 \title{Calculate distance between points y and z and turning angle between points x, y, and z}
 \usage{
-distAngle(x, y, z)
+distAngle(x, y, z, type = "UTM")
 }
 \arguments{
 \item{x}{location 1}
@@ -12,6 +12,8 @@ distAngle(x, y, z)
 \item{y}{location 2}
 
 \item{z}{location 3}
+
+\item{type}{\code{'UTM'} if easting/northing provided (the default), \code{'LL'} if longitude/latitude}
 }
 \value{
 2-vector with first element the distance between y and z and second element the turning angle
@@ -23,4 +25,6 @@ Calculate distance between points y and z and turning angle between points x, y,
 \details{
 Used in \code{\link{prepData}} and \code{\link{simData}} to get distance and turning angle covariates 
 between locations (x1,x2), (y1,y2) and activity center (z1,z2).
+
+If \code{type='LL'} then distance is calculated as great circle distance using \code{\link[sp]{spDistsN1}}, and turning angle is calculated based on initial bearings using \code{\link[geosphere]{bearing}}.
 }

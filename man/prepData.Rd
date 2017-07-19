@@ -10,13 +10,14 @@ prepData(data, type = c("UTM", "LL"), coordNames = c("x", "y"),
 \arguments{
 \item{data}{Either a data frame of data streams or a \code{\link{crwData}} object (as returned by \code{\link{crawlWrap}}). If \code{data} is a data frame, it can optionally include a field \code{ID}
 (identifiers for the observed individuals), coordinates from which step length ('step') 
-and turning angle ('angle') area calculated, and any covariates (with names matching \code{covNames} and/or \code{angleCovs}). 
+and turning angle ('angle') are calculated, and any covariates (with names matching \code{covNames} and/or \code{angleCovs}). 
 If step length and turning angle are to be calculated from coordinates, the \code{coordNames} argument 
 must identify the names for the x- (longitunal) and y- (latitudinal) coordinates.
 With the exception of \code{ID} and \code{coordNames}, all variables in \code{data} are treated as data streams unless identified
 as covariates in \code{covNames} and/or \code{angleCovs}.}
 
-\item{type}{\code{'UTM'} if easting/northing provided (the default), \code{'LL'} if longitude/latitude. Ignored if \code{data} is a \code{\link{crwData}} object.}
+\item{type}{\code{'UTM'} if easting/northing provided (the default), \code{'LL'} if longitude/latitude. If \code{type='LL'} then step lengths are calculated in kilometers and turning angles are based on initial bearings (see \code{\link{turnAngle}}).
+Ignored if \code{data} is a \code{\link{crwData}} object.}
 
 \item{coordNames}{Names of the columns of coordinates in the \code{data} data frame. Default: \code{c("x","y")}. If \code{coordNames=NULL} then step lengths, turning angles, 
 and location covariates (i.e., those specified by \code{spatialCovs}, \code{centers}, and \code{angleCovs}) are not calculated. Ignored if \code{data} is a \code{\link{crwData}} object.}

@@ -6,12 +6,13 @@
 #'
 #' @param data Either a data frame of data streams or a \code{\link{crwData}} object (as returned by \code{\link{crawlWrap}}). If \code{data} is a data frame, it can optionally include a field \code{ID}
 #' (identifiers for the observed individuals), coordinates from which step length ('step') 
-#' and turning angle ('angle') area calculated, and any covariates (with names matching \code{covNames} and/or \code{angleCovs}). 
+#' and turning angle ('angle') are calculated, and any covariates (with names matching \code{covNames} and/or \code{angleCovs}). 
 #' If step length and turning angle are to be calculated from coordinates, the \code{coordNames} argument 
 #' must identify the names for the x- (longitunal) and y- (latitudinal) coordinates.
 #' With the exception of \code{ID} and \code{coordNames}, all variables in \code{data} are treated as data streams unless identified
 #' as covariates in \code{covNames} and/or \code{angleCovs}.
-#' @param type \code{'UTM'} if easting/northing provided (the default), \code{'LL'} if longitude/latitude. Ignored if \code{data} is a \code{\link{crwData}} object.
+#' @param type \code{'UTM'} if easting/northing provided (the default), \code{'LL'} if longitude/latitude. If \code{type='LL'} then step lengths are calculated in kilometers and turning angles are based on initial bearings (see \code{\link{turnAngle}}).
+#' Ignored if \code{data} is a \code{\link{crwData}} object.
 #' @param coordNames Names of the columns of coordinates in the \code{data} data frame. Default: \code{c("x","y")}. If \code{coordNames=NULL} then step lengths, turning angles, 
 #' and location covariates (i.e., those specified by \code{spatialCovs}, \code{centers}, and \code{angleCovs}) are not calculated. Ignored if \code{data} is a \code{\link{crwData}} object.
 #' @param covNames Character vector indicating the names of any covariates in \code{data} dataframe. Any variables in \code{data} (other than \code{ID}) that are not identified in 
@@ -181,8 +182,8 @@ prepData <- function(data, type=c('UTM','LL'),coordNames=c("x","y"),covNames=NUL
             # turning angle
             genData[i-i1+1] <- turnAngle(c(x[i-1],y[i-1]),
                                          c(x[i],y[i]),
-                                         c(x[i+1],y[i+1]))
-          } else genData[i-i1] <- data[[j]][i-1]
+                                         c(x[i+1],y[i+1]),type)
+          }
         }
         if(j=="step" & !is.null(coordNames)) {
           genData[i2-i1] <- spDistsN1(pts = matrix(c(x[i2-1],y[i2-1]),ncol=2),pt = c(x[i2],y[i2]),longlat = (type=='LL')) # TRUE if 'LL', FALSE otherwise
@@ -261,9 +262,9 @@ prepData <- function(data, type=c('UTM','LL'),coordNames=c("x","y"),covNames=NUL
           i1 <- which(ID==unique(ID)[zoo])[1]
           i2 <- i1+nbObs-1
           for(j in 1:length(centerInd)){
-            centerCovs[i1,centerNames[(j-1)*2+1:2]]<-distAngle(c(x[i1],y[i1]),c(x[i1],y[i1]),centers[centerInd[j],])
+            centerCovs[i1,centerNames[(j-1)*2+1:2]]<-distAngle(c(x[i1],y[i1]),c(x[i1],y[i1]),centers[centerInd[j],],type)
             for(i in (i1+1):i2) {
-              centerCovs[i,centerNames[(j-1)*2+1:2]]<-distAngle(c(x[i-1],y[i-1]),c(x[i],y[i]),centers[centerInd[j],])
+              centerCovs[i,centerNames[(j-1)*2+1:2]]<-distAngle(c(x[i-1],y[i-1]),c(x[i],y[i]),centers[centerInd[j],],type)
             }
           }
         }

@@ -1,0 +1,18 @@
+momentuHMM 1.0.1 2017-07-17
+-----------------
+NEW FEATURES
+
+* Elephant seal example of Michelot et al (2017) added to vignette
+
+CHANGES
+
+* turning angles for lat/long coordinates (type='LL') now calculated based on initial bearings using geosphere::bearing in turnAngle
+
+* bug fix when calculating activity center distances from lat/long coordinates (type='LL') in distAngle
+
+* bug fix in prepData when successive pairs of coordinates are NA
+
+
+momentuHMM 1.0.0 2017-06-16
+-----------------
+Initial CRAN posting

@@ -73,9 +73,19 @@ plot.momentuHMM <- function(x,animals=NULL,covs=NULL,ask=TRUE,breaks="Sturges",h
   }
   
   # prepare colors for the states (used in the maps and for the densities)
-  if (!is.null(col) & length(col) != nbStates) {
-    warning("Length of 'col' should be equal to number of states - argument ignored")
-    col <- 2:(nbStates + 1)
+  if (!is.null(col) & length(col) >= nbStates)
+      col <- col[1:nbStates]
+  if(!is.null(col) & length(col)<nbStates) {
+    warning("Length of 'col' should be at least number of states - argument ignored")
+    if(nbStates<8) {
+      pal <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", 
+               "#0072B2", "#D55E00", "#CC79A7")
+      col <- pal[1:nbStates]
+    } else {
+      # to make sure that all colours are distinct (emulate ggplot default palette)
+      hues <- seq(15, 375, length = nbStates + 1)
+      col <- hcl(h = hues, l = 65, c = 100)[1:nbStates]
+    }
   }
   if (is.null(col) & nbStates < 8) {
     pal <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", 
@@ -167,14 +177,14 @@ plot.momentuHMM <- function(x,animals=NULL,covs=NULL,ask=TRUE,breaks="Sturges",h
     if(nrow(covs)>1) stop('covs must consist of a single row')
     if(!all(names(covs) %in% names(m$data))) stop('invalid covs specified')
     if(any(names(covs) %in% "ID")) covs$ID<-factor(covs$ID,levels=unique(m$data$ID))
+    for(j in names(m$data)[which(names(m$data) %in% names(covs))]){
+      if(inherits(m$data[[j]],"factor")) covs[[j]] <- factor(covs[[j]],levels=levels(m$data[[j]]))
+      if(is.na(covs[[j]])) stop("check value for ",j)
+    }
     for(j in names(m$data)[which(!(names(m$data) %in% names(covs)) & unlist(lapply(m$data,function(x) any(class(x) %in% meansList))))]){
       if(inherits(m$data[[j]],"factor")) covs[[j]] <- m$data[[j]][which(m$data$ID %in% ID)][1]
       else if(inherits(m$data[[j]],"angle")) covs[[j]] <- CircStats::circ.mean(m$data[[j]][which(m$data$ID %in% ID)][!is.na(m$data[[j]][which(m$data$ID %in% ID)])])
       else covs[[j]]<-mean(m$data[[j]][which(m$data$ID %in% ID)],na.rm=TRUE)
-    }
-    for(j in names(m$data)[which(names(m$data) %in% names(covs))]){
-      if(inherits(m$data[[j]],"factor")) covs[[j]] <- factor(covs[[j]],levels=levels(m$data[[j]]))
-      if(is.na(covs[[j]])) stop("check value for ",j)
     }
   }
   
@@ -396,7 +406,7 @@ plot.momentuHMM <- function(x,animals=NULL,covs=NULL,ask=TRUE,breaks="Sturges",h
           for(ii in DMterms[which(unlist(lapply(m$data[DMterms],is.factor)))])
             tempCovs[[ii]] <- factor(tempCovs[[ii]],levels=levels(m$data[[ii]]))
           
-          tmpSplineInputs<-getSplineDM(i,tmpInputs$DM,m,tempCovs)
+          tmpSplineInputs<-getSplineDM(i,inputs$DM,m,tempCovs)
           tempCovs<-tmpSplineInputs$covs
           DMinputs<-getDM(tempCovs,tmpSplineInputs$DM[i],m$conditions$dist[i],nbStates,p$parNames[i],p$bounds[i],Par[i],m$conditions$cons[i],m$conditions$workcons[i],m$conditions$zeroInflation[i],m$conditions$oneInflation[i],m$conditions$circularAngleMean[i])
 

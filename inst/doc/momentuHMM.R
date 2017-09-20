@@ -322,3 +322,98 @@ data <- prepData(data=tracks, type="LL", centers=center)
 #               circularAngleMean=list(angle=TRUE),
 #               stateNames = stateNames)
 
+## ----spec-hsStep, echo=TRUE, eval=FALSE----------------------------------
+#  nbStates <- 3
+#  stateNames <- c("resting", "foraging", "transit")
+#  dist <- list(step = "weibull", angle = "wrpcauchy", dive = "beta")
+#  stepDM<-matrix(c(1,0,0,0,0,0,0,0,0,
+#                   0,1,0,0,0,0,0,0,0,
+#                   0,0,1,0,0,0,0,0,0,
+#                   0,0,0,1,0,0,0,0,0,
+#                   0,0,0,1,1,0,0,0,0,
+#                   0,0,0,1,1,1,0,0,0,
+#                   0,0,0,0,0,0,1,0,0,
+#                   0,0,0,0,0,0,0,1,0,
+#                   0,0,0,0,0,0,0,0,1),nrow=3*nbStates,byrow=TRUE,
+#          dimnames=list(c(paste0("shape_",1:nbStates),
+#                          paste0("scale_",1:nbStates),
+#                          paste0("zeromass_",1:nbStates)),
+#                        c(paste0("shape_",1:nbStates,":(Intercept)"),
+#                          "scale:(Intercept)","scale_2","scale_3",
+#                          paste0("zeromass_",1:nbStates,":(Intercept)"))))
+#  stepcons<-c(1,1,1,1,2,2,1,1,1)
+#  stepBounds<-matrix(c(0,5,
+#                       0,5,
+#                       0,5,
+#                       0,14400,
+#                       0,14400,
+#                       0,14400,
+#                       0,1,
+#                       0,1,
+#                       0,1),nrow=3*nbStates,byrow=TRUE,
+#                      dimnames=list(c(paste0("shape_",1:nbStates),
+#                                      paste0("scale_",1:nbStates),
+#                                      paste0("zeromass_",1:nbStates))))
+
+## ----spec-hsAngle, echo=TRUE, eval=FALSE---------------------------------
+#  angleDM <- matrix(c(1,0,0,
+#                      0,1,-1,
+#                      0,1,0),nrow=nbStates,byrow=TRUE,
+#                    dimnames=list(paste0("concentration_",1:nbStates),
+#                                  c("concentration_1:(Intercept)",
+#                                    "concentration_23:(Intercept)",
+#                                    "concentration_2")))
+#  angleBounds <- matrix(c(0,0.95,
+#                          0,0.95,
+#                          0,0.95),nrow=nbStates,byrow=TRUE,
+#                        dimnames=list(paste0("concentration_",1:nbStates)))
+#  anglecons <- c(1,2,2)
+#  transitcons <- boot::logit((0.75 - angleBounds[3,1])
+#                             /(angleBounds[3,2] - angleBounds[3,1]))
+#  angleworkcons <- c(0,transitcons,0)
+
+## ----spec-hsDive, echo=TRUE, eval=FALSE----------------------------------
+#  omegaDM <- matrix(c(1,0,0,0,0,0,0,
+#                      0,0,1,1,0,0,0,
+#                      0,0,1,1,0,0,0,
+#                      1,1,0,0,0,0,0,
+#                      0,0,1,0,0,0,0,
+#                      0,0,1,0,0,0,0,
+#                      0,0,0,0,1,0,0,
+#                      0,0,0,0,0,1,0,
+#                      0,0,0,0,0,0,1),nrow=nbStates*3,byrow=TRUE,
+#                  dimnames=list(c(paste0("shape1_",1:nbStates),
+#                                  paste0("shape2_",1:nbStates),
+#                                  paste0("zeromass_",1:nbStates)),
+#                                c("shape_1:(Intercept)","shape2_1",
+#                                  "shape_2:(Intercept)","shape1_2",
+#                                  paste0("zeromass_",1:nbStates,":(Intercept)"))))
+#  omegacons <- c(1,2,1,2,1,1,1)
+#  omegaBounds <- matrix(c(1,10,
+#                          1,10,
+#                          1,10,
+#                          1,10,
+#                          1,10,
+#                          1,10,
+#                          0,1,
+#                          0,1,
+#                          0,1),nrow=nbStates*3,byrow=TRUE,
+#                      dimnames=list(c(paste0("shape1_",1:nbStates),
+#                                      paste0("shape2_",1:nbStates),
+#                                      paste0("zeromass_",1:nbStates))))
+
+## ----spec-hsFixPar, echo=TRUE, eval=FALSE--------------------------------
+#  fixPar <- list(step=c(rep(NA,nbStates*2),NA,NA,boot::logit(1.e-100)),
+#               omega=c(rep(NA,(nbStates-1)*2),NA,rep(boot::logit(1.e-100),2)))
+
+## ----fit-hs, echo=TRUE, eval=FALSE---------------------------------------
+#  DM <- list(step = stepDM, angle = angleDM, omega = omegaDM)
+#  cons <- list(step = stepcons, angle = anglecons, omega = omegacons)
+#  userBounds <- list(step = stepBounds, angle = angleBounds, omega = omegaBounds)
+#  workcons <- list(angle = angleworkcons)
+#  hsFits <- MIfitHMM(crwOut, nSims = 30,
+#                     nbStates = nbStates, dist = dist, Par0 = Par0,
+#                     DM = DM, cons = cons,
+#                     userBounds = userBounds, workcons = workcons,
+#                     fixPar = fixPar, stateNames = stateNames)
+

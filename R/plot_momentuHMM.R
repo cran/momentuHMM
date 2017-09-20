@@ -386,10 +386,12 @@ plot.momentuHMM <- function(x,animals=NULL,covs=NULL,ask=TRUE,breaks="Sturges",h
     genFun <- Fun[[i]]
     if(m$conditions$dist[[i]] %in% angledists) {
       grid <- seq(-pi,pi,length=1000)
-    } else if(m$conditions$dist[[i]]=="pois"){
+    } else if(m$conditions$dist[[i]] %in% integerdists){
       grid <- seq(0,max(m$data[[i]],na.rm=TRUE))
-    } else {
+    } else if(m$conditions$dist[[i]] %in% stepdists){
       grid <- seq(0,max(m$data[[i]],na.rm=TRUE),length=10000)
+    } else {
+      grid <- seq(min(m$data[[i]],na.rm=TRUE),max(m$data[[i]],na.rm=TRUE),length=10000)
     }
     
     for(state in 1:nbStates) {

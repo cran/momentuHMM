@@ -27,6 +27,19 @@ dweibull_rcpp <- function(x, shape, scale) {
     .Call('_momentuHMM_dweibull_rcpp', PACKAGE = 'momentuHMM', x, shape, scale)
 }
 
+#' Normal density function
+#'
+#' Probability density function of the normal distribution (written in C++)
+#'
+#' @param x Vector of quantiles
+#' @param mean Mean of the distribution 
+#' @param sd Standard deviation of the distribution 
+#'
+#' @return Vector of densities
+dnorm_rcpp <- function(x, mean, sd) {
+    .Call('_momentuHMM_dnorm_rcpp', PACKAGE = 'momentuHMM', x, mean, sd)
+}
+
 #' Log-normal density function
 #'
 #' Probability density function of the log-normal distribution (written in C++)
@@ -104,8 +117,34 @@ dpois_rcpp <- function(x, rate, foo) {
     .Call('_momentuHMM_dpois_rcpp', PACKAGE = 'momentuHMM', x, rate, foo)
 }
 
-getDM_rcpp <- function(DM, covs, tmpDM, nr, nc, cov, nbObs) {
-    .Call('_momentuHMM_getDM_rcpp', PACKAGE = 'momentuHMM', DM, covs, tmpDM, nr, nc, cov, nbObs)
+#' Bernoulli density function
+#'
+#' Probability density function of the Bernoulli distribution (written in C++)
+#'
+#' @param x Vector of quantiles
+#' @param prob success probability
+#' @param foo Unused (for compatibility with template)
+#'
+#' @return Vector of densities
+dbern_rcpp <- function(x, prob, foo) {
+    .Call('_momentuHMM_dbern_rcpp', PACKAGE = 'momentuHMM', x, prob, foo)
+}
+
+#' Get design matrix
+#'
+#' Loop for creating full design matrix (X) from pseudo-design matrix (DM). Written in C++. Used in \code{getDM}.
+#'
+#' @param X full design matrix
+#' @param covs matrix of covariates
+#' @param DM pseudo design matrix
+#' @param nr number of rows in design matrix
+#' @param nc number of column in design matrix
+#' @param cov covariate names
+#' @param nbObs number of observations
+#'
+#' @return full design matrix (X)
+getDM_rcpp <- function(X, covs, DM, nr, nc, cov, nbObs) {
+    .Call('_momentuHMM_getDM_rcpp', PACKAGE = 'momentuHMM', X, covs, DM, nr, nc, cov, nbObs)
 }
 
 #' Negative log-likelihood

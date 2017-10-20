@@ -2,8 +2,8 @@ Package: momentuHMM
 Type: Package
 Title: Maximum Likelihood Analysis of Animal Movement Behavior Using
         Multivariate Hidden Markov Models
-Version: 1.1.1
-Date: 2017-09-19
+Version: 1.2.0
+Date: 2017-10-19
 Depends: R (>= 2.10), splines, splines2
 Author: Brett McClintock, Theo Michelot
 Maintainer: Brett McClintock <brett.mcclintock@noaa.gov>
@@ -19,6 +19,6 @@ Suggests: testthat, setRNG, knitr
 RoxygenNote: 6.0.1
 NeedsCompilation: yes
 VignetteBuilder: knitr
-Packaged: 2017-09-20 17:50:16 UTC; brettmcclintock
+Packaged: 2017-10-19 23:12:05 UTC; brettmcclintock
 Repository: CRAN
-Date/Publication: 2017-09-20 21:44:19 UTC
+Date/Publication: 2017-10-20 09:09:04 UTC

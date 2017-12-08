@@ -1,3 +1,26 @@
+momentuHMM 1.3.0 2017-12-06
+-----------------
+NEW FEATURES
+
+* Dynamic activity centers (i.e., those with coordinates that can change over time) can now be handled via the centroids argument in prepData and simData. An example based on the group dynamic model of Langrock et al. (2014) has been added to the vignette.
+
+* initialPosition argument in simData can now be specified as a list indicating the initial position for each individual
+
+CHANGES
+
+* multinomial logit link now used on zeroInflation and oneInflation parameters
+
+* bug fix in calculation of pseudo-residuals (pseudoRes) with zeroInflation and/or oneInflation
+
+* bug fix in CIreal when natural scale delta estimates are near boundary
+
+* bug fix in crawlWrap when predTime is of length one
+
+* bug fix in MIpool when initial distribution includes covariates
+
+* splines and splines2 package dependencies changed to Suggests in DESCRIPTION file
+
+
 momentuHMM 1.2.0 2017-10-19
 -----------------
 NEW FEATURES

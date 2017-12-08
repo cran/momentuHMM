@@ -2,12 +2,12 @@ Package: momentuHMM
 Type: Package
 Title: Maximum Likelihood Analysis of Animal Movement Behavior Using
         Multivariate Hidden Markov Models
-Version: 1.2.0
-Date: 2017-10-19
-Depends: R (>= 2.10), splines, splines2
+Version: 1.3.0
+Date: 2017-12-06
+Depends: R (>= 2.10)
 Author: Brett McClintock, Theo Michelot
 Maintainer: Brett McClintock <brett.mcclintock@noaa.gov>
-Description: Extended tools for analyzing telemetry data using (multivariate) hidden Markov models. These include processing of tracking data, fitting HMMs to location and auxiliary biotelemetry or environmental data, multiple imputation for incorporating location measurement error and missing data, visualization of data and fitted model, decoding of the state process...
+Description: Extended tools for analyzing telemetry data using generalized hidden Markov models. These include data pre-processing and visualization, fitting HMMs to location and auxiliary biotelemetry or environmental data, biased and correlated random walk movement models, multiple imputation for incorporating location measurement error and missing data, user-specified design matrices and constraints for covariate modelling of parameters, decoding of the state process, visualization of fitted models, model checking and selection, and simulation. See McClintock and Michelot (2017) <arXiv:1710.03786>.
 License: GPL-3
 LazyData: TRUE
 Imports: Rcpp, doParallel, foreach, numDeriv, CircStats, crawl, ggmap,
@@ -15,10 +15,10 @@ Imports: Rcpp, doParallel, foreach, numDeriv, CircStats, crawl, ggmap,
         boot, sp, MASS, Brobdingnag, gstat, conicfit, nleqslv,
         survival, qdapRegex, geosphere, LaplacesDemon
 LinkingTo: Rcpp, RcppArmadillo
-Suggests: testthat, setRNG, knitr
+Suggests: testthat, setRNG, knitr, splines, splines2
 RoxygenNote: 6.0.1
 NeedsCompilation: yes
 VignetteBuilder: knitr
-Packaged: 2017-10-19 23:12:05 UTC; brettmcclintock
+Packaged: 2017-12-08 20:47:21 UTC; brettmcclintock
 Repository: CRAN
-Date/Publication: 2017-10-20 09:09:04 UTC
+Date/Publication: 2017-12-08 21:55:53 UTC

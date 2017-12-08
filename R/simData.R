@@ -55,11 +55,19 @@
 #' for the distance and angle covariates (e.g., 'center1.dist', 'center1.angle', 'center2.dist', 'center2.angle'); otherwise the covariate names are derived from the row names
 #' of \code{centers} as \code{paste0(rep(rownames(centers),each=2),c(".dist",".angle"))}. Note that the angle covariates for each activity center are calculated relative to 
 #' the previous movement direction instead of standard directions relative to the x-axis; this is to allow turning angles to be simulated as a function of these covariates using circular-circular regression.
+#' @param centroids List where each element is a data frame consisting of at least \code{max(unlist(obsPerAnimal))} rows that provides the x-coordinates ('x') and y-coordinates ('y) for centroids (i.e., dynamic activity centers where the coordinates can change for each time step)
+#' from which distance and angle covariates will be calculated based on the simulated location data. These distance and angle 
+#' covariates can be included in \code{formula} and \code{DM} using the names of \code{centroids}.  If no list names are provided, then generic names are generated 
+#' for the distance and angle covariates (e.g., 'centroid1.dist', 'centroid1.angle', 'centroid2.dist', 'centroid2.angle'); otherwise the covariate names are derived from the list names
+#' of \code{centroids} as \code{paste0(rep(names(centroids),each=2),c(".dist",".angle"))}. Note that the angle covariates for each centroid are calculated relative to 
+#' the previous movement direction instead of standard directions relative to the x-axis; this is to allow turning angles to be simulated as a function of these covariates using circular-circular regression.
 #' @param obsPerAnimal Either the number of the number of observations per animal (if single value) or the bounds of the number of observations per animal (if vector of two values). In the latter case, 
 #' the numbers of obervations generated for each animal are uniformously picked from this interval. Alternatively, \code{obsPerAnimal} can be specified as
 #' a list of length \code{nbAnimals} with each element providing the number of observations (if single value) or the bounds (if vector of two values) for each individual.
 #' Default: \code{c(500,1500)}.
-#' @param initialPosition 2-vector providing the x- and y-coordinates of the initial position for all animals. Default: \code{c(0,0)}.
+#' @param initialPosition 2-vector providing the x- and y-coordinates of the initial position for all animals. Alternatively, \code{initialPosition} can be specified as
+#' a list of length \code{nbAnimals} with each element a 2-vector providing the x- and y-coordinates of the initial position for each individual.
+#' Default: \code{c(0,0)}.
 #' @param DM An optional named list indicating the design matrices to be used for the probability distribution parameters of each data 
 #' stream. Each element of \code{DM} can either be a named list of regression formulas or a ``pseudo'' design matrix.  For example, for a 2-state 
 #' model using the gamma distribution for a data stream named 'step', \code{DM=list(step=list(mean=~cov1, sd=~1))} specifies the mean 
@@ -89,7 +97,7 @@
 #' @param model A \code{\link{momentuHMM}}, \code{\link{miHMM}}, or \code{\link{miSum}} object. This option can be used to simulate from a fitted model.  Default: NULL.
 #' Note that, if this argument is specified, most other arguments will be ignored -- except for \code{nbAnimals},
 #' \code{obsPerAnimal}, \code{states}, \code{initialPosition}, \code{lambda}, \code{errorEllipse}, and, if covariate values different from those in the data should be specified, 
-#' \code{covs}, \code{spatialCovs}, and \code{centers}.
+#' \code{covs}, \code{spatialCovs}, \code{centers}, and \code{centroids}.
 #' @param states \code{TRUE} if the simulated states should be returned, \code{FALSE} otherwise (default).
 #' @param retrySims Number of times to attempt to simulate data within the spatial extent of \code{spatialCovs}. If \code{retrySims=0} (the default), an
 #' error is returned if the simulated tracks(s) move beyond the extent(s) of the raster layer(s). Instead of relying on \code{retrySims}, in many cases
@@ -231,7 +239,8 @@
 #'                 Par=list(step=c(100,1000,50,100),angle=c(0,0,0.1,5)),
 #'                 beta=matrix(c(5,-10,-25,50),nrow=2,ncol=2,byrow=TRUE),
 #'                 formula=~forest,spatialCovs=spatialCov,
-#'                 obsPerAnimal=250,states=TRUE)
+#'                 obsPerAnimal=250,states=TRUE,
+#'                 retrySims=10)
 #'                 
 #' # 5. Specify design matrix for 'omega' data stream
 #' # natural scale parameters for step and angle
@@ -279,6 +288,7 @@
 #'                   beta=beta,formula=formula,covs=covs)     
 #'                   
 #' # 8. Piecewise constant B-spline on step length mean and angle concentration
+#' library(splines2)
 #' nObs <- 1000 # length of simulated track
 #' cov <- data.frame(time=1:nObs) # time covariate for splines
 #' dist <- list(step="gamma",angle="vm")
@@ -328,6 +338,7 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
                     oneInflation=NULL,
                     circularAngleMean=NULL,
                     centers=NULL,
+                    centroids=NULL,
                     obsPerAnimal=c(500,1500),
                     initialPosition=c(0,0),
                     DM=NULL,cons=NULL,userBounds=NULL,workcons=NULL,stateNames=NULL,
@@ -460,7 +471,7 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
     if(!all(distnames %in% names(Par))) stop(distnames[which(!(distnames %in% names(Par)))]," is missing in 'Par'")
     Par <- Par[distnames]
     
-    mHind <- (is.null(DM) & is.null(userBounds) & is.null(spatialCovs) & is.null(centers) & ("step" %in% names(dist)) & all(initialPosition==c(0,0)) & is.null(lambda) & is.null(errorEllipse) & !is.list(obsPerAnimal) & is.null(covs) & !nbCovs & !length(attr(terms.formula(formula),"term.labels")) & !length(attr(terms.formula(formulaDelta),"term.labels")) & is.null(delta)) # indicator for moveHMM::simData
+    mHind <- (is.null(DM) & is.null(userBounds) & is.null(spatialCovs) & is.null(centers) & is.null(centroids) & ("step" %in% names(dist)) & all(unlist(initialPosition)==c(0,0)) & is.null(lambda) & is.null(errorEllipse) & !is.list(obsPerAnimal) & is.null(covs) & !nbCovs & !length(attr(terms.formula(formula),"term.labels")) & !length(attr(terms.formula(formulaDelta),"term.labels")) & is.null(delta)) # indicator for moveHMM::simData
     if(all(names(dist) %in% c("step","angle")) & mHind){
       zi <- FALSE
       if(!is.null(zeroInflation$step)) zi <- zeroInflation$step
@@ -520,7 +531,7 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
     else estAngleMean[[i]]<-FALSE
   }
   
-  inputs <- checkInputs(nbStates,dist,Par,estAngleMean,circularAngleMean,zeroInflation,oneInflation,DM,userBounds,cons,workcons,stateNames)
+  inputs <- checkInputs(nbStates,dist,Par,estAngleMean,circularAngleMean,zeroInflation,oneInflation,DM,userBounds,cons,workcons,stateNames,checkInflation = TRUE)
   p <- inputs$p
   parSize <- p$parSize
   bounds <- p$bounds
@@ -560,6 +571,20 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
     obsPerAnimal<-vector('list',nbAnimals)
     for(i in 1:nbAnimals){
       obsPerAnimal[[i]]<-tmpObs
+    }
+  }
+  
+  if(is.list(initialPosition)){
+    if(length(initialPosition)!=nbAnimals) stop("initialPosition must be a list of length ",nbAnimals)
+    for(i in 1:nbAnimals){
+      if(length(initialPosition[[i]])!=2 | !is.numeric(initialPosition[[i]])) stop("each element of initialPosition must be a numeric vector of length 2")
+    }
+  } else {
+    if(length(initialPosition)!=2 | !is.numeric(initialPosition)) stop("initialPosition must be a numeric vector of length 2")
+    tmpPos<-initialPosition
+    initialPosition<-vector('list',nbAnimals)
+    for(i in 1:nbAnimals){
+      initialPosition[[i]]<-tmpPos
     }
   }
 
@@ -651,6 +676,7 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
   
   centerInd<-NULL
   if(!is.null(centers)){
+    if(!is.matrix(centers)) stop("centers must be a matrix")
     if(dim(centers)[2]!=2) stop("centers must be a matrix consisting of 2 columns (i.e., x- and y-coordinates)")
     centerInd <- which(!apply(centers,1,function(x) any(is.na(x))))
     if(length(centerInd)){
@@ -659,6 +685,25 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
       centerCovs <- data.frame(matrix(NA,nrow=sum(allNbObs),ncol=length(centerInd)*2,dimnames=list(NULL,centerNames)))
     }  
   } else centerNames <- NULL
+  
+  centroidInd<-NULL
+  if(!is.null(centroids)){
+    if(!is.list(centroids)) stop("centroids must be a named list")
+    centroidNames <- character()
+    for(j in 1:length(centroids)){
+      if(!is.data.frame(centroids[[j]])) stop("each element of centroids must be a data frame")
+      if(dim(centroids[[j]])[1]<max(unlist(obsPerAnimal)) | dim(centroids[[j]])[2]!=2) stop("each element of centroids must be a data frame consisting of at least ",max(unlist(obsPerAnimal))," rows (i.e., the maximum number of observations per animal) and 2 columns (i.e., x- and y-coordinates)")
+      if(!all(c("x","y") %in% colnames(centroids[[j]]))) stop("centroids columns must be named 'x' (x-coordinate) and 'y' (y-coordinate)")
+      #centroidInd <- which(!apply(centroids[[j]],1,function(x) any(is.na(x))))
+      #if(length(centroidInd)){
+      if(any(is.na(centroids[[j]]))) stop("centroids cannot contain missing values")
+      if(is.null(names(centroids[j]))) centroidNames <- c(centroidNames,paste0("centroid",rep(j,each=2),".",c("dist","angle")))
+      else centroidNames <- c(centroidNames,paste0(rep(names(centroids[j]),each=2),".",c("dist","angle")))
+    }
+    centroidCovs <- data.frame(matrix(NA,nrow=sum(allNbObs),ncol=length(centroidNames),dimnames=list(NULL,centroidNames)))
+    centroidInd <- length(centroidNames)/2
+      #}  
+  } else centroidNames <- NULL
   
   if(!is.null(model) & length(centerInd)){
     cInd <- which(!(colnames(allCovs) %in% centerNames))
@@ -670,6 +715,17 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
       nbCovs <- 0
     }
   } else if(any(colnames(allCovs) %in% centerNames)) stop("centers name(s) cannot match other covariate name(s)")
+  
+  if(!is.null(model) & length(centroidInd)){
+    cInd <- which(!(colnames(allCovs) %in% centroidNames))
+    if(length(cInd)) {
+      allCovs <- allCovs[,cInd,drop=FALSE]
+      nbCovs <- ncol(allCovs)
+    } else {
+      allCovs <- NULL
+      nbCovs <- 0
+    }
+  } else if(any(colnames(allCovs) %in% centroidNames)) stop("centroids name(s) cannot match other covariate name(s)")
   
   allNbCovs <- nbCovs+nbSpatialCovs
 
@@ -703,7 +759,7 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
         data$x<-numeric()
         data$y<-numeric()
       }    
-  } else if(nbSpatialCovs | length(centerInd)) stop("spatialCovs and/or centers cannot be specified without valid step length and turning angle distributions")
+  } else if(nbSpatialCovs | length(centerInd) | length(centroidInd)) stop("spatialCovs, centers, and/or centroids cannot be specified without valid step length and turning angle distributions")
   
   #if(is.null(formula)) {
   #  if(allNbCovs) formula <- formula(paste0("~",paste0(c(colnames(allCovs),spatialcovnames),collapse="+")))
@@ -728,10 +784,10 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
   message("=======================================================================")
   
   if(length(all.vars(formula)))
-    if(!all(all.vars(formula) %in% c("ID",names(allCovs),centerNames,spatialcovnames)))
+    if(!all(all.vars(formula) %in% c("ID",names(allCovs),centerNames,centroidNames,spatialcovnames)))
       stop("'formula' covariate(s) not found")
   if(length(all.vars(formulaDelta)))
-    if(!all(all.vars(formulaDelta) %in% c("ID",names(allCovs),centerNames,spatialcovnames)))
+    if(!all(all.vars(formulaDelta) %in% c("ID",names(allCovs),centerNames,centroidNames,spatialcovnames)))
       stop("'formulaDelta' covariate(s) not found")
   if(("ID" %in% all.vars(formula) | "ID" %in% all.vars(formulaDelta)) & nbAnimals<2) stop("ID cannot be a covariate when nbAnimals=1")
   
@@ -764,16 +820,23 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
     tmpCovs <- cbind(tmpCovs,allCovs[1,,drop=FALSE])
   if(nbSpatialCovs){
     for(j in 1:nbSpatialCovs){
-      getCell<-raster::cellFromXY(spatialCovs[[j]],initialPosition)
+      getCell<-raster::cellFromXY(spatialCovs[[j]],initialPosition[[1]])
       if(is.na(getCell)) stop("Movement is beyond the spatial extent of the ",spatialcovnames[j]," raster. Try expanding the extent of the raster.")
       tmpCovs[[spatialcovnames[j]]]<-spatialCovs[[j]][getCell]
     }
   }
   if(length(centerInd)){
     for(j in 1:length(centerInd)){
-      tmpDistAngle <- distAngle(initialPosition,initialPosition,centers[centerInd[j],])
+      tmpDistAngle <- distAngle(initialPosition[[1]],initialPosition[[1]],centers[centerInd[j],])
       tmpCovs[[centerNames[(j-1)*2+1]]]<- tmpDistAngle[1]
       tmpCovs[[centerNames[(j-1)*2+2]]]<- tmpDistAngle[2]
+    }
+  }
+  if(length(centroidInd)){
+    for(j in 1:centroidInd){
+      tmpDistAngle <- distAngle(initialPosition[[1]],initialPosition[[1]],as.numeric(centroids[[j]][1,]))
+      tmpCovs[[centroidNames[(j-1)*2+1]]]<- tmpDistAngle[1]
+      tmpCovs[[centroidNames[(j-1)*2+2]]]<- tmpDistAngle[2]
     }
   }
   nbBetaCovs <- ncol(model.matrix(newformula,tmpCovs))
@@ -793,7 +856,6 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
       if(length(noBeta)) beta[noBeta,state] <- 0
     }
   }
-  if(length(initialPosition)!=2 | !is.numeric(initialPosition)) stop("initialPosition must be a numeric vector of length 2")
   
   covsDelta <- model.matrix(formulaDelta,tmpCovs)
   nbCovsDelta <- ncol(covsDelta)-1
@@ -836,12 +898,13 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
         subCovs <- cbind(subCovs,data.frame(allCovs[ind1:ind2,,drop=FALSE]))
       }
       if(length(centerInd)) subCovs <- cbind(subCovs,centerCovs[cumNbObs[zoo]+1:nbObs,])
+      if(length(centroidInd)) subCovs <- cbind(subCovs,centroidCovs[cumNbObs[zoo]+1:nbObs,])
       
       subSpatialcovs<-as.data.frame(matrix(NA,nrow=nbObs,ncol=nbSpatialCovs))
       colnames(subSpatialcovs)<-spatialcovnames
   
       X <- matrix(0,nrow=nbObs,ncol=2)
-      X[1,] <- initialPosition # initial position of animal
+      X[1,] <- initialPosition[[zoo]] # initial position of animal
   
       phi <- 0
       
@@ -859,7 +922,7 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
       
       gamma <- diag(nbStates)
       
-      if(!nbSpatialCovs & !length(centerInd)) {
+      if(!nbSpatialCovs & !length(centerInd) & !length(centroidInd)) {
         DMcov <- model.matrix(newformula,subCovs)
         gFull <-  DMcov %*% beta
         
@@ -893,6 +956,12 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
             subCovs[1,centerNames[(j-1)*2+1:2]]<-distAngle(X[1,],X[1,],centers[centerInd[j],])
           }
         }
+        
+        if(length(centroidInd)){
+          for(j in 1:centroidInd){
+            subCovs[1,centroidNames[(j-1)*2+1:2]]<-distAngle(X[1,],X[1,],as.numeric(centroids[[j]][1,]))
+          }
+        }
         g <- model.matrix(newformula,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE])) %*% beta
         covsDelta <- model.matrix(formulaDelta,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE]))
         delta <- c(rep(0,nbCovsDelta+1),deltaB)
@@ -916,7 +985,7 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
       
       for (k in 1:(nbObs-1)){
         
-        if(nbSpatialCovs |  length(centerInd)){
+        if(nbSpatialCovs |  length(centerInd) | length(centroidInd)){
           # format parameters
           DMinputs<-getDM(cbind(subCovs[k,,drop=FALSE],subSpatialcovs[k,,drop=FALSE]),inputs$DM,dist,nbStates,p$parNames,p$bounds,Par,cons,workcons,zeroInflation,oneInflation,inputs$circularAngleMean)
           fullDM <- DMinputs$fullDM
@@ -972,7 +1041,8 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
               genArgs[[i]][[3]] <- 1/scale # rgamma expects rate=1/scale
             }
       
-            rU <- which(rmultinom(1,1,prob=c(((1.-zeroMass[[i]][Z[k]])*(1.-oneMass[[i]][Z[k]])),zeroMass[[i]][Z[k]],(1.-zeroMass[[i]][Z[k]])*oneMass[[i]][Z[k]]))==1)
+            probs <- c(1.-zeroMass[[i]][Z[k]]-oneMass[[i]][Z[k]],zeroMass[[i]][Z[k]],oneMass[[i]][Z[k]])
+            rU <- which(rmultinom(1,1,prob=probs)==1)
             if(rU==1)
               genData[[i]][k] <- do.call(Fun[[i]],genArgs[[i]])
             else if(rU==2)
@@ -986,7 +1056,7 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
         }
         # get next state
         gamma <- diag(nbStates)
-        if(nbSpatialCovs | length(centerInd)){
+        if(nbSpatialCovs | length(centerInd) | length(centroidInd)){
           if(nbSpatialCovs){
             for(j in 1:nbSpatialCovs){
               getCell<-raster::cellFromXY(spatialCovs[[j]],c(X[k+1,1],X[k+1,2]))
@@ -997,6 +1067,11 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
           if(length(centerInd)){
             for(j in 1:length(centerInd)){
               subCovs[k+1,centerNames[(j-1)*2+1:2]]<-distAngle(X[k,],X[k+1,],centers[centerInd[j],])
+            }
+          }
+          if(length(centroidInd)){
+            for(j in 1:centroidInd){
+              subCovs[k+1,centroidNames[(j-1)*2+1:2]]<-distAngle(X[k,],X[k+1,],as.numeric(centroids[[j]][k+1,]))
             }
           }
           g <- model.matrix(newformula,cbind(subCovs[k+1,,drop=FALSE],subSpatialcovs[k+1,,drop=FALSE])) %*% beta
@@ -1030,6 +1105,7 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
         }    
       }
       if(length(centerInd)) centerCovs[cumNbObs[zoo]+1:nbObs,] <- subCovs[,centerNames]
+      if(length(centroidInd)) centroidCovs[cumNbObs[zoo]+1:nbObs,] <- subCovs[,centroidNames]
       data <- rbind(data,d)
     }
     
@@ -1045,6 +1121,14 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
       data <- cbind(data,centerCovs)
       for(j in which(grepl(".angle",names(data)))){
         if(names(data[j]) %in% centerNames)
+          class(data[[j]]) <- c(class(data[[j]]), "angle")
+      }
+    }
+    
+    if(length(centroidInd)){
+      data <- cbind(data,centroidCovs)
+      for(j in which(grepl(".angle",names(data)))){
+        if(names(data[j]) %in% centroidNames)
           class(data[[j]]) <- c(class(data[[j]]), "angle")
       }
     }
@@ -1077,6 +1161,7 @@ simData <- function(nbAnimals=1,nbStates=2,dist,
                           oneInflation,
                           circularAngleMean,
                           centers,
+                          centroids,
                           obsPerAnimal,
                           initialPosition,
                           DM,cons,userBounds,workcons,stateNames,

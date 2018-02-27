@@ -21,14 +21,14 @@
 #' @param miData A \code{\link{crwData}} object, a \code{\link{crwSim}} object, or a list of \code{\link{momentuHMMData}} objects.
 #' @param nSims Number of imputations in which to fit the HMM using \code{\link{fitHMM}}. If \code{miData} is a list of \code{momentuHMMData} 
 #' objects, \code{nSims} cannot exceed the length of \code{miData}.
-#' @param ncores Number of cores to use for parallel processing.
+#' @param ncores Number of cores to use for parallel processing. Default: 1 (no parallel processing).
 #' @param poolEstimates Logical indicating whether or not to calculate pooled parameter estimates across the \code{nSims} imputations using \code{\link{MIpool}}. Default: \code{TRUE}.
 #' @param alpha Significance level for calculating confidence intervals of pooled estimates when \code{poolEstimates=TRUE} (see \code{\link{MIpool}}). Default: 0.95.
 #' @param nbStates Number of states of the HMM. See \code{\link{fitHMM}}.
 #' @param dist A named list indicating the probability distributions of the data streams. See \code{\link{fitHMM}}.
 #' @param Par0 A named list containing vectors of initial state-dependent probability distribution parameters for 
 #' each data stream specified in \code{dist}. See \code{\link{fitHMM}}.  \code{Par0} may also be a list of length \code{nSims}, where each element is a named list containing vectors
-#' of initial state-dependent probability distribution parameters for each imputation.
+#' of initial state-dependent probability distribution parameters for each imputation. Note that if \code{useInitial=TRUE} then \code{Par0} is ignored after the first imputation.
 #' @param beta0 Initial matrix of regression coefficients for the transition probabilities. See \code{\link{fitHMM}}. \code{beta0} may also be a list of length \code{nSims}, where each element 
 #' is an initial matrix of regression coefficients for the transition probabilities for each imputation.
 #' @param delta0 Initial values for the initial distribution of the HMM. See \code{\link{fitHMM}}. \code{delta0} may also be a list of length \code{nSims}, where each element 
@@ -41,21 +41,25 @@
 #' @param formulaDelta Regression formula for the initial distribution. See \code{\link{fitHMM}}.
 #' @param stationary \code{FALSE} if there are covariates. If \code{TRUE}, the initial distribution is considered
 #' equal to the stationary distribution. See \code{\link{fitHMM}}.
-#' @param verbose Determines the print level of the \code{fitHMM} optimizer. The default value of 0 means that no
+#' @param verbose Deprecated: please use \code{print.level} in \code{nlmPar} argument. Determines the print level of the \code{nlm} optimizer. The default value of 0 means that no
 #' printing occurs, a value of 1 means that the first and last iterations of the optimization are
-#' detailed, and a value of 2 means that each iteration of the optimization is detailed.
-#' @param nlmPar List of parameters to pass to the \code{fitHMM} optimization function \code{nlm} (which should be either
-#' '\code{gradtol}', '\code{stepmax}', '\code{steptol}', or '\code{iterlim}' -- see \code{nlm}'s documentation
-#' for more detail)
+#' detailed, and a value of 2 means that each iteration of the optimization is detailed. Ignored unless \code{optMethod="nlm"}.
+#' @param nlmPar List of parameters to pass to the optimization function \code{\link[stats]{nlm}} (which should be either
+#' \code{print.level}, \code{gradtol}, \code{stepmax}, \code{steptol}, \code{iterlim}, or \code{hessian} -- see \code{nlm}'s documentation
+#' for more detail). Ignored unless \code{optMethod="nlm"}.
 #' @param fit \code{TRUE} if the HMM should be fitted to the data, \code{FALSE} otherwise. See \code{\link{fitHMM}}. If \code{fit=FALSE} and \code{miData} is a \code{\link{crwData}}
 #' object, then \code{MIfitHMM} returns a list containing a \code{\link{momentuHMMData}} object (if \code{nSims=1}) or, if \code{nSims>1}, a \code{\link{crwSim}} object.
+#' @param useInitial Logical indicating whether or not to use parameter estimates for the first model fit as initial values for all subsequent model fits.  
+#' If \code{ncores>1} then the first model is fit on a single core and then used as the initial values for all subsequent model fits on each core 
+#' (in this case, the progress of the initial model fit can be followed using the \code{verbose} argument). Default: FALSE.
 #' @param DM An optional named list indicating the design matrices to be used for the probability distribution parameters of each data 
 #' stream. See \code{\link{fitHMM}}.
-#' @param cons An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
+#' @param cons Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
 #' for each data stream. See \code{\link{fitHMM}}.
 #' @param userBounds An optional named list of 2-column matrices specifying bounds on the natural (i.e, real) scale of the probability 
 #' distribution parameters for each data stream. See \code{\link{fitHMM}}.
-#' @param workcons An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
+#' @param workBounds An optional named list of 2-column matrices specifying bounds on the working scale of the probability distribution, transition probability, and initial distribution parameters. See \code{\link{fitHMM}}.
+#' @param workcons Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
 #' each data stream. See \code{\link{fitHMM}}.
 #' @param stateNames Optional character vector of length nbStates indicating state names.
 #' @param knownStates Vector of values of the state process which are known prior to fitting the
@@ -64,6 +68,10 @@
 #' @param fixPar An optional list of vectors indicating parameters which are assumed known prior to fitting the model. See \code{\link{fitHMM}}. 
 #' @param retryFits Non-negative integer indicating the number of times to attempt to iteratively fit the model using random perturbations of the current parameter estimates as the 
 #' initial values for likelihood optimization.  See \code{\link{fitHMM}}. 
+#' @param retrySD An optional list of scalars or vectors indicating the standard deviation to use for normal perturbations of each working scale parameter when \code{retryFits>0}. See \code{\link{fitHMM}}.
+#' @param optMethod The optimization method to be used.  Can be ``nlm'' (the default; see \code{\link[stats]{nlm}}), ``Nelder-Mead'' (see \code{\link[stats]{optim}}), or ``SANN'' (see \code{\link[stats]{optim}}).
+#' @param control A list of control parameters to be passed to \code{\link[stats]{optim}} (ignored unless \code{optMethod="Nelder-Mead"} or \code{optMethod="SANN"}).
+#' @param prior A function that returns the log-density of the working scale parameter prior distribution(s).  See \code{\link{fitHMM}}.
 #' @param covNames Names of any covariates in \code{miData$crwPredict} (if \code{miData} is a \code{\link{crwData}} object; otherwise 
 #' \code{covNames} is ignored). See \code{\link{prepData}}. 
 #' @param spatialCovs List of raster layer(s) for any spatial covariates not included in \code{miData$crwPredict} (if \code{miData} is 
@@ -71,6 +79,8 @@
 #' @param centers 2-column matrix providing the x-coordinates (column 1) and y-coordinates (column 2) for any activity centers (e.g., potential 
 #' centers of attraction or repulsion) from which distance and angle covariates will be calculated based on realizations of the position process. 
 #' See \code{\link{prepData}}. Ignored unless \code{miData} is a \code{\link{crwData}} object.
+#' @param centroids List where each element is a data frame containing the x-coordinates ('x'), y-coordinates ('y'), and times (with user-specified name, e.g., `time') for centroids (i.e., dynamic activity centers where the coordinates can change over time)
+#' from which distance and angle covariates will be calculated based on the location data. See \code{\link{prepData}}. Ignored unless \code{miData} is a \code{\link{crwData}} object.
 #' @param angleCovs Character vector indicating the names of any circular-circular regression angular covariates in \code{miData$crwPredict} that need conversion from standard direction (in radians relative to the x-axis) to turning angle (relative to previous movement direction) 
 #' See \code{\link{prepData}}. Ignored unless \code{miData} is a \code{\link{crwData}} object.
 #' @param method Method for obtaining weights for movement parameter samples. See \code{\link[crawl]{crwSimulator}}. Ignored unless \code{miData} is a \code{\link{crwData}} object.
@@ -114,7 +124,7 @@
 #'
 #' # create crwData object by fitting crwMLE models to obsData and predict locations 
 #' # at default intervals for both individuals
-#' crwOut <- crawlWrap(obsData=obsData,ncores=1,
+#' crwOut <- crawlWrap(obsData=obsData,
 #'          theta=c(4,0),fixPar=c(1,1,NA,NA),
 #'          initial.state=inits,
 #'          err.model=err.model)
@@ -146,7 +156,7 @@
 #' bPar0 <- getPar(bestFit)
 #' 
 #' # Fit nSims=5 imputations of the position process
-#' miFits<-MIfitHMM(miData=crwOut,nSims=5,ncores=1,
+#' miFits<-MIfitHMM(miData=crwOut,nSims=5,
 #'                   nbStates=nbStates,dist=list(step=stepDist,angle=angleDist),
 #'                   Par0=bPar0$Par,beta0=bPar0$beta,delta0=bPar0$delta,
 #'                   formula=formula,estAngleMean=list(angle=TRUE),
@@ -168,20 +178,28 @@
 #' @importFrom doParallel registerDoParallel stopImplicitCluster
 #' @importFrom foreach foreach %dopar%
 #' @importFrom raster getZ
-MIfitHMM<-function(miData,nSims, ncores, poolEstimates = TRUE, alpha = 0.95,
+MIfitHMM<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha = 0.95,
                    nbStates, dist, 
                    Par0, beta0 = NULL, delta0 = NULL,
                    estAngleMean = NULL, circularAngleMean = NULL,
                    formula = ~1, formulaDelta = ~1, stationary = FALSE, 
-                   verbose = 0, nlmPar = NULL, fit = TRUE, 
-                   DM = NULL, cons = NULL, userBounds = NULL, workcons = NULL, 
-                   stateNames = NULL, knownStates = NULL, fixPar = NULL, retryFits = 0,
-                   covNames=NULL,spatialCovs=NULL,centers=NULL,angleCovs=NULL,
+                   verbose = NULL, nlmPar = NULL, fit = TRUE, useInitial = FALSE,
+                   DM = NULL, cons = NULL, userBounds = NULL, workBounds = NULL, workcons = NULL, 
+                   stateNames = NULL, knownStates = NULL, fixPar = NULL, retryFits = 0, retrySD = NULL, optMethod = "nlm", control = list(), prior = NULL,
+                   covNames = NULL, spatialCovs = NULL, centers = NULL, centroids = NULL, angleCovs = NULL,
                    method = "IS", parIS = 1000, dfSim = Inf, grid.eps = 1, crit = 2.5, scaleSim = 1, force.quad = TRUE,
-                   fullPost = TRUE, dfPostIS = Inf, scalePostIS = 1,thetaSamp = NULL
-                   ){
+                   fullPost = TRUE, dfPostIS = Inf, scalePostIS = 1,thetaSamp = NULL)
+{
 
   j <- NULL #gets rid of no visible binding for global variable 'j' NOTE in R cmd check
+  
+  if(poolEstimates){
+    if(optMethod=="nlm" & !is.null(nlmPar$hessian)){
+      if(!nlmPar$hessian) stop("estimates cannot be pooled unless hessian is calculated")
+    } else if(optMethod %in% fitMethods[-1] & !is.null(control$hessian)){
+      if(!control$hessian) stop("estimates cannot be pooled unless hessian is calculated")
+    }
+  }
   
   if(is.crwData(miData)){
     
@@ -220,6 +238,7 @@ MIfitHMM<-function(miData,nSims, ncores, poolEstimates = TRUE, alpha = 0.95,
                                   df = dfSim, grid.eps = grid.eps, crit = crit, scale = scaleSim, force.quad = force.quad)
       }
       stopImplicitCluster()
+      names(crwSim) <- ids
       
       registerDoParallel(cores=ncores)
       miData<-
@@ -235,7 +254,7 @@ MIfitHMM<-function(miData,nSims, ncores, poolEstimates = TRUE, alpha = 0.95,
             }
           }
           df<-data.frame(x=locs$mu.x,y=locs$mu.y,predData[,c("ID",distnames,covNames,znames),drop=FALSE])[which(predData$locType=="p"),]
-          prepData(df,covNames=covNames,spatialCovs=spatialCovs,centers=centers,angleCovs=angleCovs)
+          prepData(df,covNames=covNames,spatialCovs=spatialCovs,centers=centers,centroids=centroids,angleCovs=angleCovs)
         }
       stopImplicitCluster()
       cat("DONE\n")
@@ -243,7 +262,7 @@ MIfitHMM<-function(miData,nSims, ncores, poolEstimates = TRUE, alpha = 0.95,
         warning('prepData failed for imputation ',i,"; ",miData[[i]])
       }
       ind <- which(unlist(lapply(miData,function(x) inherits(x,"momentuHMMData"))))
-      if(fit) cat('Fitting',length(ind),'realizations of the position process using fitHMM... ')
+      if(fit) cat('Fitting',length(ind),'realizations of the position process using fitHMM... \n')
       else return(crwSim(list(miData=miData,crwSimulator=crwSim)))
     } else stop("nSims must be >0")
     
@@ -255,56 +274,74 @@ MIfitHMM<-function(miData,nSims, ncores, poolEstimates = TRUE, alpha = 0.95,
     if(missing(nSims)) nSims <- length(miData)
     if(nSims>length(miData)) stop("nSims is greater than the length of miData. nSims must be <=",length(miData))
     if(nSims<1) stop("nSims must be >0")
-    cat('Fitting',min(nSims,length(ind)),'imputation(s) using fitHMM... ')
+    cat('Fitting',min(nSims,length(ind)),'imputation(s) using fitHMM... \n')
   }
   
   if(!is.list(knownStates)){
     tmpStates<-knownStates
     knownStates<-vector('list',nSims)
     if(!is.null(tmpStates))
-      for(i in 1:nSims)
-        knownStates[[i]]<-tmpStates
+      knownStates[1:nSims]<-list(tmpStates)
   } else if(length(knownStates)<nSims) stop("knownStates must be a list of length >=",nSims)
   
   if(all(names(dist) %in% names(Par0))){
     tmpPar0<-Par0
     Par0<-vector('list',nSims)
-    for(i in 1:nSims)
-      Par0[[i]]<-tmpPar0
+    Par0[1:nSims]<-list(tmpPar0)
   } else if(length(Par0)<nSims) stop("Par0 must be a list of length >=",nSims)
   
   if(!is.list(beta0)){
     tmpbeta0<-beta0
     beta0<-vector('list',nSims)
     if(!is.null(tmpbeta0))
-      for(i in 1:nSims)
-        beta0[[i]]<-tmpbeta0
+        beta0[1:nSims]<-list(tmpbeta0)
   } else if(length(beta0)<nSims) stop("beta0 must be a list of length >=",nSims)
   
   if(!is.list(delta0)){
     tmpdelta0<-delta0
     delta0<-vector('list',nSims)
     if(!is.null(tmpdelta0))
-      for(i in 1:nSims)
-        delta0[[i]]<-tmpdelta0
+      delta0[1:nSims]<-list(tmpdelta0)
   } else if(length(delta0)!=nSims) stop("delta0 must be a list of length ",nSims)
   
   #check HMM inputs and print model message
   test<-fitHMM(miData[[ind[1]]],nbStates, dist, Par0[[ind[1]]], beta0[[ind[1]]], delta0[[ind[1]]],
-         estAngleMean, circularAngleMean, formula, formulaDelta, stationary, verbose,
-         nlmPar, fit = FALSE, DM, cons,
-         userBounds, workcons, stateNames, knownStates[[ind[1]]], fixPar, retryFits)
+           estAngleMean, circularAngleMean, formula, formulaDelta, stationary, verbose,
+           nlmPar, fit = FALSE, DM, cons,
+           userBounds, workBounds, workcons, stateNames, knownStates[[ind[1]]], fixPar, retryFits, retrySD, optMethod, control, prior)
   
   # fit HMM(s)
+  fits <- list()
+  parallelStart <- 1
+  if(useInitial){
+    parallelStart <- 2
+    if(nSims>1){
+      cat("\rImputation ",1,"... ",sep="")
+    }
+    fits[[1]]<-suppressMessages(fitHMM(miData[[1]],nbStates, dist, Par0[[1]], beta0[[1]], delta0[[1]],
+                                    estAngleMean, circularAngleMean, formula, formulaDelta, stationary, verbose,
+                                    nlmPar, fit, DM, cons,
+                                    userBounds, workBounds, workcons, stateNames, knownStates[[1]], fixPar, retryFits, retrySD, optMethod, control, prior))
+    if(retryFits>=1){
+      cat("\n")
+    }
+    if(nSims>1){
+      cat("DONE\nFitting remaining imputations... \n")
+    }
+    tmpPar <- getPar0(fits[[1]])
+    Par0[parallelStart:nSims] <- list(tmpPar$Par)
+    beta0[parallelStart:nSims] <- list(tmpPar$beta)
+    delta0[parallelStart:nSims] <- list(tmpPar$delta)
+  }
   registerDoParallel(cores=ncores)
-  fits <-
-    foreach(j = 1:nSims, .export=c("fitHMM"), .errorhandling="pass") %dopar% {
-
-      if(nSims>1) cat("\rImputation ",j,"...",sep="")
+  fits[parallelStart:nSims] <-
+    foreach(j = parallelStart:nSims, .export=c("fitHMM"), .errorhandling="pass") %dopar% {
+      
+      if(nSims>1) cat("     \rImputation ",j,"... ",sep="")
       tmpFit<-suppressMessages(fitHMM(miData[[j]],nbStates, dist, Par0[[j]], beta0[[j]], delta0[[j]],
-                              estAngleMean, circularAngleMean, formula, formulaDelta, stationary, verbose,
-                              nlmPar, fit, DM, cons,
-                              userBounds, workcons, stateNames, knownStates[[j]], fixPar, retryFits))
+                                      estAngleMean, circularAngleMean, formula, formulaDelta, stationary, verbose,
+                                      nlmPar, fit, DM, cons,
+                                      userBounds, workBounds, workcons, stateNames, knownStates[[j]], fixPar, retryFits, retrySD, optMethod, control, prior))
       if(retryFits>=1) cat("\n")
       tmpFit
     }  
@@ -315,10 +352,10 @@ MIfitHMM<-function(miData,nSims, ncores, poolEstimates = TRUE, alpha = 0.95,
     warning('Fit #',i,' failed; ',fits[[i]])
   }
   
-  if(nSims==1) out<-fits[[1]]
-  else {
-    if(poolEstimates) out<-miHMM(list(miSum=MIpool(fits,alpha=alpha,ncores=ncores),HMMfits=fits))
+  fits <- HMMfits(fits)
+  
+  if(poolEstimates & nSims>1) out <- miHMM(list(miSum=MIpool(fits,alpha=alpha,ncores=ncores),HMMfits=fits))
     else out <- fits
-  }
+  
   out
 }

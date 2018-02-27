@@ -6,18 +6,19 @@
 \usage{
 fitHMM(data, nbStates, dist, Par0, beta0 = NULL, delta0 = NULL,
   estAngleMean = NULL, circularAngleMean = NULL, formula = ~1,
-  formulaDelta = ~1, stationary = FALSE, verbose = 0, nlmPar = NULL,
-  fit = TRUE, DM = NULL, cons = NULL, userBounds = NULL,
-  workcons = NULL, stateNames = NULL, knownStates = NULL, fixPar = NULL,
-  retryFits = 0)
+  formulaDelta = ~1, stationary = FALSE, verbose = NULL,
+  nlmPar = list(), fit = TRUE, DM = NULL, cons = NULL,
+  userBounds = NULL, workBounds = NULL, workcons = NULL,
+  stateNames = NULL, knownStates = NULL, fixPar = NULL, retryFits = 0,
+  retrySD = NULL, optMethod = "nlm", control = list(), prior = NULL)
 }
 \arguments{
-\item{data}{An object \code{momentuHMMData}.}
+\item{data}{A \code{\link{momentuHMMData}} object.}
 
 \item{nbStates}{Number of states of the HMM.}
 
 \item{dist}{A named list indicating the probability distributions of the data streams. Currently
-supported distributions are 'bern', 'beta', 'exp', 'gamma', 'lnorm', 'norm', 'pois', 'vm', 'weibull', and 'wrpcauchy'. For example,
+supported distributions are 'bern', 'beta', 'exp', 'gamma', 'lnorm', 'norm', 'pois', 'vm', 'vmConsensus', 'weibull', and 'wrpcauchy'. For example,
 \code{dist=list(step='gamma', angle='vm', dives='pois')} indicates 3 data streams ('step', 'angle', and 'dives')
 and their respective probability distributions ('gamma', 'vm', and 'pois').  The names of the data streams 
 (e.g., 'step', 'angle', 'dives') must match component names in \code{data}.}
@@ -47,7 +48,8 @@ as a k x (\code{nbStates}-1) matrix, where k is the number of covariates and the
 \item{estAngleMean}{An optional named list indicating whether or not to estimate the angle mean for data streams with angular 
 distributions ('vm' and 'wrpcauchy'). For example, \code{estAngleMean=list(angle=TRUE)} indicates the angle mean is to be 
 estimated for 'angle'.  Default is \code{NULL}, which assumes any angle means are fixed to zero and are not to be estimated. 
-Any \code{estAngleMean} elements corresponding to data streams that do not have angular distributions are ignored.}
+Any \code{estAngleMean} elements corresponding to data streams that do not have angular distributions are ignored.
+\code{estAngleMean} is also ignored for any 'vmConsensus' data streams (because the angle mean must be estimated in consensus models).}
 
 \item{circularAngleMean}{An optional named list indicating whether to use circular-linear (FALSE) or circular-circular (TRUE) 
 regression on the mean of circular distributions ('vm' and 'wrpcauchy') for turning angles.  For example, 
@@ -59,7 +61,7 @@ direction of movement (instead of standard directions relative to the x-axis; se
 using previous movement direction as the reference angle. Default is \code{NULL}, which assumes circular-linear regression is 
 used for any angular distributions for which the mean angle is to be estimated. \code{circularAngleMean} elements corresponding to angular data 
 streams are ignored unless the corresponding element of \code{estAngleMean} is \code{TRUE}. Any \code{circularAngleMean} elements 
-corresponding to data streams that do not have angular distributions are ignored.}
+corresponding to data streams that do not have angular distributions are ignored. \code{circularAngleMean} is also ignored for any 'vmConsensus' data streams (because the consensus model is a circular-circular regression model).}
 
 \item{formula}{Regression formula for the transition probability covariates. Default: \code{~1} (no covariate effect). In addition to allowing standard functions in R formulas
 (e.g., \code{cos(cov)}, \code{cov1*cov2}, \code{I(cov^2)}), special functions include \code{cosinor(cov,period)} for modeling cyclical patterns, spline functions 
@@ -72,13 +74,13 @@ Any formula terms that are not state- or parameter-specific are included on all 
 \item{stationary}{\code{FALSE} if there are covariates in \code{formula} or \code{formulaDelta}. If \code{TRUE}, the initial distribution is considered
 equal to the stationary distribution. Default: \code{FALSE}.}
 
-\item{verbose}{Determines the print level of the optimizer. The default value of 0 means that no
+\item{verbose}{Deprecated: please use \code{print.level} in \code{nlmPar} argument. Determines the print level of the \code{nlm} optimizer. The default value of 0 means that no
 printing occurs, a value of 1 means that the first and last iterations of the optimization are
-detailed, and a value of 2 means that each iteration of the optimization is detailed.}
+detailed, and a value of 2 means that each iteration of the optimization is detailed. Ignored unless \code{optMethod="nlm"}.}
 
-\item{nlmPar}{List of parameters to pass to the optimization function \code{nlm} (which should be either
-'\code{gradtol}', '\code{stepmax}', '\code{steptol}', or '\code{iterlim}' -- see \code{nlm}'s documentation
-for more detail)}
+\item{nlmPar}{List of parameters to pass to the optimization function \code{\link[stats]{nlm}} (which should be either
+\code{print.level}, \code{gradtol}, \code{stepmax}, \code{steptol}, \code{iterlim}, or \code{hessian} -- see \code{nlm}'s documentation
+for more detail). Ignored unless \code{optMethod="nlm"}.}
 
 \item{fit}{\code{TRUE} if an HMM should be fitted to the data, \code{FALSE} otherwise.
 If fit=\code{FALSE}, a model is returned with the MLE replaced by the initial parameters given in
@@ -96,20 +98,25 @@ coefficients.
 Design matrices specified using formulas allow standard functions in R formulas
 (e.g., \code{cos(cov)}, \code{cov1*cov2}, \code{I(cov^2)}).  Special formula functions include \code{cosinor(cov,period)} for modeling cyclical patterns, spline functions 
 (\code{\link[splines]{bs}}, \code{\link[splines]{ns}}, \code{\link[splines2]{bSpline}}, \code{\link[splines2]{cSpline}}, \code{\link[splines2]{iSpline}}, and \code{\link[splines2]{mSpline}}), 
-and state-specific formulas (see details). Any formula terms that are not state-specific are included on the parameters for all \code{nbStates} states.}
+\code{angleFormula(cov,strength)} for the angle mean of circular-circular regression models, and state-specific formulas (see details). Any formula terms that are not state-specific are included on the parameters for all \code{nbStates} states.}
 
-\item{cons}{An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
+\item{cons}{Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
 for each data stream. While there could be other uses, primarily intended to constrain specific parameters to be positive. For example, 
 \code{cons=list(step=c(1,2,1,1))} raises the second parameter to the second power. Default=NULL, which simply raises all parameters to 
 the power of 1. \code{cons} is ignored for any given data stream unless \code{DM} is specified.}
 
 \item{userBounds}{An optional named list of 2-column matrices specifying bounds on the natural (i.e, real) scale of the probability 
-distribution parameters for each data stream. For example, for a 2-state model using the wrapped Cauchy ('wrpcauchy') distribution for 
+distribution parameters for each data stream. For each matrix, the first column pertains to the lower bound and the second column the upper bound. For example, for a 2-state model using the wrapped Cauchy ('wrpcauchy') distribution for 
 a data stream named 'angle' with \code{estAngleMean$angle=TRUE)}, \code{userBounds=list(angle=matrix(c(-pi,-pi,-1,-1,pi,pi,1,1),4,2,dimnames=list(c("mean_1",
 "mean_2","concentration_1","concentration_2"))))} 
 specifies (-1,1) bounds for the concentration parameters instead of the default [0,1) bounds.}
 
-\item{workcons}{An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
+\item{workBounds}{An optional named list of 2-column matrices specifying bounds on the working scale of the probability distribution, transition probability, and initial distribution parameters. For each matrix, the first column pertains to the lower bound and the second column the upper bound.
+For data streams, each element of \code{workBounds} should be a k x 2 matrix with the same name of the corresponding element of 
+\code{Par0}, where k is the number of parameters. For transition probability parameters, the corresponding element of \code{workBounds} must be a k x 2 matrix named ``beta'', where k=\code{length(beta0)}. For initial distribution parameters, the corresponding element of \code{workBounds} must be a k x 2 matrix named ``delta'', where k=\code{length(delta0)}.
+\code{workBounds} is ignored for any given data stream unless \code{DM} is also specified.}
+
+\item{workcons}{Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
 each data stream. Warning: use of \code{workcons} is recommended only for advanced users implementing unusual parameter constraints 
 through a combination of \code{DM}, \code{cons}, and \code{workcons}. \code{workcons} is ignored for any given data stream unless \code{DM} is specified.}
 
@@ -121,13 +128,25 @@ of rows of 'data'; each element should either be an integer (the value of the kn
 the state is not known.}
 
 \item{fixPar}{An optional list of vectors indicating parameters which are assumed known prior to fitting the model. Default: NULL 
-(no parameters are fixed). For data streams, each element of \code{fixPar} should be a vector of the same name and length as the corresponding element of 
-\code{Par0}. For transition probability parameters, the corresponding element of \code{fixPar} must be named ``beta'' and have the same dimensions as \code{beta0}. For initial distribution parameters, the corresponding element of \code{fixPar} must be named ``delta'' and have the same dimensions as \code{delta0}. Each parameter should either be numeric (the fixed value of the parameter) or NA if the parameter is to be estimated. For each data stream, \code{fixPar} parameters must be on the same scale as \code{Par0} (e.g. if \code{DM} is specified for a given data stream, any fixed parameters for this data stream must be on the working scale).  Any fixed values for the transition probabilities (\code{beta}) must be on the working scale (i.e. the same scale as \code{beta0}). Any fixed values for the initial distribution (\code{delta}) must be on the natural scale (i.e. the same scale as \code{delta0}).}
+(no parameters are fixed). For data streams, each element of \code{fixPar} should be a vector of the same name and length as the corresponding element of \code{Par0}. 
+For transition probability parameters, the corresponding element of \code{fixPar} must be named ``beta'' and have the same dimensions as \code{beta0}. 
+For initial distribution parameters, the corresponding element of \code{fixPar} must be named ``delta'' and have the same dimensions as \code{delta0}. 
+Each parameter should either be numeric (the fixed value of the parameter) or NA if the parameter is to be estimated. Corresponding \code{fixPar} parameters must be on the same scale as \code{Par0} (e.g. if \code{DM} is specified for a given data stream, any fixed parameters for this data stream must be on the working scale), \code{beta0}, and \code{delta0}.}
 
 \item{retryFits}{Non-negative integer indicating the number of times to attempt to iteratively fit the model using random perturbations of the current parameter estimates as the 
-initial values for likelihood optimization. Standard normal perturbations are used on the working scale probability distribution parameters, while
-Normal(0,10^2) pertubations are used for working scale transition probability parameters. Default: 0.  When \code{retryFits>0}, the model with the largest log likelihood 
-value is returned.  Ignored if \code{fit=FALSE}.}
+initial values for likelihood optimization. Normal(0,\code{retrySD}^2) perturbations are used on the working scale parameters. Default: 0.  When \code{retryFits>0}, the model with the largest log likelihood 
+value is returned. Ignored if \code{fit=FALSE}.}
+
+\item{retrySD}{An optional list of scalars or vectors indicating the standard deviation to use for normal perturbations of each working scale parameter when \code{retryFits>0}. For data streams, each element of \code{retrySD} should be a vector of the same name and length as the corresponding element of \code{Par0} (if a scalar is provided, then this value will be used for all working parameters of the data stream). 
+For transition probability parameters, the corresponding element of \code{retrySD} must be named ``beta'' and have the same dimensions as \code{beta0}. 
+For initial distribution parameters, the corresponding element of \code{retrySD} must be named ``delta'' and have the same dimensions as \code{delta0} (if \code{delta0} is on the working scale) or be of length \code{nbStates-1} (if \code{delta0} is on the natural scale).
+Default: NULL (in which case \code{retrySD}=1 for data stream parameters and \code{retrySD}=10 for initial distribution and state transition probabilities). Ignored unless \code{retryFits>0}.}
+
+\item{optMethod}{The optimization method to be used.  Can be ``nlm'' (the default; see \code{\link[stats]{nlm}}), ``Nelder-Mead'' (see \code{\link[stats]{optim}}), or ``SANN'' (see \code{\link[stats]{optim}}).}
+
+\item{control}{A list of control parameters to be passed to \code{\link[stats]{optim}} (ignored unless \code{optMethod="Nelder-Mead"} or \code{optMethod="SANN"}).}
+
+\item{prior}{A function that returns the log-density of the working scale parameter prior distribution(s). See 'Details'.}
 }
 \value{
 A \code{\link{momentuHMM}} object, i.e. a list of:
@@ -139,9 +158,9 @@ includes covariates), and \code{delta} (initial distribution).}
 \item{CIreal}{Standard errors and 95\% confidence intervals on the real (i.e., natural) scale of parameters}
 \item{CIbeta}{Standard errors and 95\% confidence intervals on the beta (i.e., working) scale of parameters}
 \item{data}{The momentuHMMData object}
-\item{mod}{The object returned by the numerical optimizer \code{nlm}}
+\item{mod}{The object returned by the numerical optimizer \code{nlm} or \code{optim}}
 \item{conditions}{Conditions used to fit the model, e.g., \code{bounds} (parameter bounds), distributions, \code{zeroInflation},
-\code{estAngleMean}, \code{stationary}, \code{formula}, \code{DM}, \code{fullDM} (full design matrix), etc.)}
+\code{estAngleMean}, \code{stationary}, \code{formula}, \code{DM}, \code{fullDM} (full design matrix), etc.}
 \item{rawCovs}{Raw covariate values for transition probabilities, as found in the data (if any). Used in \code{\link{plot.momentuHMM}}.}
 \item{stateNames}{The names of the states.}
 \item{knownStates}{Vector of values of the state process which are known.}
@@ -184,10 +203,14 @@ Under this formulation, the reference turning angle is 0 (i.e., movement in the 
 In other words, the mean turning angle is zero when the coefficient(s) B=0.
 
 \item Circular-circular regression in \code{momentuHMM} is designed for turning angles (not bearings) as computed by \code{\link{simData}} and \code{\link{prepData}}. 
-Any circular-circular regression covariates for time step t should therefore be relative to the previous 
+Any circular-circular regression angle covariates for time step t should therefore be relative to the previous 
 direction of movement for time step t-1.  In other words, circular-circular regression covariates for time step t should be the turning angle
 between the direction of movement for time step t-1 and the standard direction of the covariate relative to the x-axis for time step t.  If provided standard directions in radians relative to the x-axis 
 (where 0 = east, pi/2 = north, pi = west, and -pi/2 = south), \code{\link{circAngles}} or \code{\link{prepData}} can perform this calculation for you.  
+
+When the circular-circular regression model is used, the special function \code{angleStrength(cov,strength,by)} can be used in \code{DM} for the mean of angular distributions (i.e. 'vm', 'vmConsensus', and 'wrpcauchy'),
+where \code{cov} is an angle covariate (e.g. wind direction), \code{strength} is a positive real covariate (e.g. wind speed), and \code{by} is an optional factor variable for individual- or group-level effects (e.g. ID, sex). This allows angle covariates to be weighted based on their relative strength or importance at time step t as in
+Rivest et al. (2016).  In this case, the link function for the mean angle is atan2((Z * sin(X)) %*% B,1+(Z * cos(X)) %*% B), where X are the angle covariates, Z the strength covariates, and B the angle coefficients (see Rivest et al. 2016). 
 
 \item State-specific formulas can be specified in \code{DM} using special formula functions. These special functions can take
 the names \code{paste0("state",1:nbStates)} (where the integer indicates the state-specific formula).  For example, 
@@ -206,6 +229,12 @@ the data are hourly, a 24-hour cycle can be modeled using \code{~cosinor(cov1,24
 of integers indicating the hour of day (\code{0,1,...,23,0,1,...,23,0,1,...}) (note that \code{fitHMM} will not do this for you, the appropriate covariate must be included in \code{data}; see example below). 
 The \code{cosinor(x,period)} function converts \code{x} to 2 covariates \code{cosinorCos(x)=cos(2*pi*x/period)} and \code{cosinorSin(x)=sin(2*pi*x/period} for inclusion in the model (i.e., 2 additional parameters per state). The amplitude of the sine wave
 is thus \code{sqrt(B_cos^2 + B_sin^2)}, where \code{B_cos} and \code{B_sin} are the working parameters correponding to \code{cosinorCos(x)} and \code{cosinorSin(x)}, respectively (e.g., see Cornelissen 2014).
+
+\item Similar to that used in \code{\link{crawlWrap}}, the \code{prior} argument is a user-specified function that returns the log-density of the working scale parameter prior distribution(s). In addition to including prior information about parameters, one area where priors can be particularly useful is for handling numerical issues that can arise when parameters are near a boundary. 
+When parameters are near boundaries, they can wander into the ``nether regions'' of the parameter space during optimization. For example, setting \code{prior=function(par) {sum(dnorm(par,0,sd,log=TRUE))}} with a reasonably large \code{sd} (e.g. 100 or 1000) can help prevent working parameters 
+from straying too far along the real line.  Here \code{par} is the vector of working scale parameters (as returned by \code{fitHMM}, e.g., see \code{example$m$mod$estimate}) in the following order: data stream working parameters (in order \code{names(dist)}), beta working parameters, and delta working parameters. Instead of specifying the same prior on all parameters, different priors could be specified on different parameters (and not all parameters must have user-specified priors).  For example,
+\code{prior=function(par){dnorm(par[3],0,100,log=TRUE)}} would only specify a prior for the third working parameter. Note that the \code{prior} function must return a scalar on the log scale. See 'harbourSealExample.R' in the ``vignettes'' source directory for an example using the \code{prior} argument.
+
 }
 }
 \examples{
@@ -401,6 +430,9 @@ and ancillary biotelemetry data to investigate population-level activity budgets
 Patterson T.A., Basson M., Bravington M.V., Gunn J.S. 2009.
 Classifying movement behaviour in relation to environmental conditions using hidden Markov models.
 Journal of Animal Ecology, 78 (6), 1113-1123.
+
+Rivest, LP, Duchesne, T, Nicosia, A, Fortin, D, 2016. A general angular regression model for the analysis of data on animal movement in ecology. 
+Journal of the Royal Statistical Society: Series C (Applied Statistics), 65(3):445-463.
 }
 \seealso{
 \code{\link{getParDM}}, \code{\link{prepData}}, \code{\link{simData}}

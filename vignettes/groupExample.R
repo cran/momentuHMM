@@ -15,11 +15,12 @@ Parc <- list(step=c(15,10), angle = c(0.15,log(1)))
 DMc <- list(angle=list(mean=~center1.angle,concentration=~1))
 
 centroidData <- simData(nbStates=1,dist=dist,Par=Parc,DM=DMc,circularAngleMean=list(angle=TRUE),centers=matrix(0,1,2),obsPerAnimal = nbObs)
+centroidData$ID <- "centroid"
 plot(centroidData,ask=FALSE)
 #########################################################################
 
 #########################################################################
-## Simulate individual paths with state1 as BRW relative to centroid ####
+## Simulate individual paths with state 1 as BRW relative to centroid ###
 #########################################################################
 nbAnimals <- 20
 nbStates<-2

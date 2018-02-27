@@ -3,9 +3,11 @@
 #'
 #' The pseudo-residuals of momentuHMM models, as described in Zucchini and McDonad (2009).
 #'
-#' @param m A \code{\link{momentuHMM}}, \code{\link{miHMM}}, or \code{\link{miSum}} object.
+#' @param m A \code{\link{momentuHMM}}, \code{\link{miHMM}}, or \code{\link{miSum}} object. Alternatively, \code{m} can also be a list of \code{\link{momentuHMM}} objects.
+#' @param ncores number of cores to use for parallel processing
 #'
-#' @return A list of psuedo-residuals for each data stream (e.g., 'stepRes', 'angleRes')
+#' @return If \code{m} is a \code{\link{momentuHMM}}, \code{\link{miHMM}}, or \code{\link{miSum}} object, a list of pseudo-residuals for each data stream (e.g., 'stepRes', 'angleRes') is returned. 
+#' If \code{m} is a list of \code{\link{momentuHMM}} objects, then a list of length \code{length(m)} is returned where each element is a list of pseudo-residuals for each data stream.
 #'
 #' @details If some turning angles in the data are equal to pi, the corresponding pseudo-residuals
 #' will not be included. Indeed, given that the turning angles are defined on (-pi,pi], an angle of pi
@@ -16,8 +18,9 @@
 #' the data are near the boundary (e.g. 0 for ``pois''; 0 and 1 for ``bern''), then the pseudo residuals can
 #' be a poor indicator of lack of fit.
 #' 
-#' Note that pseudo-residuals for multiple imputation analyses are based on pooled parameter 
-#' estimates and the means of the data values across all imputations.
+#' For multiple imputation analyses, if \code{m} is a \code{\link{miHMM}} object or a list of \code{\link{momentuHMM}} objects, then
+#' the pseudo-residuals are individually calculated for each model fit. Note that pseudo-residuals for \code{\link{miSum}} objects (as returned by \code{\link{MIpool}}) are based on pooled parameter 
+#' estimates and the means of the data values across all imputations (and therefore may not be particularly meaningful).
 #'
 #' @examples
 #' # m is a momentuHMM object (as returned by fitHMM), automatically loaded with the package
@@ -36,14 +39,26 @@
 #' @export
 #' @importFrom stats integrate qnorm
 #' @importFrom LaplacesDemon pbern
+#' @importFrom doParallel registerDoParallel stopImplicitCluster
+#' @importFrom foreach foreach %dopar%
 
-pseudoRes <- function(m)
+pseudoRes <- function(m, ncores = 1)
 {
-  if(!is.momentuHMM(m) & !is.miHMM(m) & !is.miSum(m))
-    stop("'m' must be a momentuHMM, miHMM, or miSum object (as output by fitHMM, MIfitHMM, or MIpool)")
-  
-  if(is.miHMM(m)) m <- m$miSum
+
   m <- delta_bc(m)
+  
+  if(!is.momentuHMM(m) & !is.miSum(m)){
+    if(!is.miHMM(m) & !is.HMMfits(m)) stop("'m' must be a momentuHMM, HMMfits, miHMM, or miSum object (as output by fitHMM, MIfitHMM, or MIpool)")
+    else {
+      if(is.miHMM(m)) m <- m$HMMfits
+      registerDoParallel(cores=ncores)
+      genRes <- foreach(i=which(unlist(lapply(m,is.momentuHMM)))) %dopar% {
+        pseudoRes(m[[i]])
+      }
+      stopImplicitCluster()
+      return(genRes)
+    }
+  }
 
   data <- m$data
   nbObs <- nrow(data)
@@ -59,19 +74,36 @@ pseudoRes <- function(m)
         Par[[i]] <- m$Par$beta[[i]]$est
       else if(dist[[i]] %in% angledists & !m$conditions$estAngleMean[[i]])
         Par[[i]] <- Par[[i]][-1,]
+      
+      m$conditions$cons[[i]]<-rep(1,length(m$conditions$cons[[i]]))
+      m$conditions$workcons[[i]]<-rep(0,length(m$conditions$workcons[[i]]))
+      m$conditions$workBounds[[i]]<-matrix(c(-Inf,Inf),nrow(m$conditions$workBounds[[i]]),2,byrow=TRUE)
     }
+    if(!is.null(m$mle$beta)) m$conditions$workBounds$beta<-matrix(c(-Inf,Inf),length(m$mle$beta),2,byrow=TRUE)
+    if(!is.null(m$Par$beta$delta$est)) m$conditions$workBounds$delta<-matrix(c(-Inf,Inf),length(m$Par$beta$delta$est),2,byrow=TRUE)
+    
     Par<-lapply(Par,function(x) c(t(x)))
     Par<-Par[distnames]
     beta <- m$Par$beta$beta$est
     delta <- m$Par$real$delta$est
-    inputs <- checkInputs(nbStates,m$conditions$dist,Par,m$conditions$estAngleMean,m$conditions$circularAngleMean,m$conditions$zeroInflation,m$conditions$oneInflation,m$conditions$DM,m$conditions$userBounds,m$conditions$cons,m$conditions$workcons,m$stateNames)
+    inputs <- checkInputs(nbStates,dist,Par,m$conditions$estAngleMean,m$conditions$circularAngleMean,m$conditions$zeroInflation,m$conditions$oneInflation,m$conditions$DM,m$conditions$userBounds,m$conditions$cons,m$conditions$workcons,m$stateNames)
     p <- inputs$p
-    DMinputs<-getDM(data,inputs$DM,m$conditions$dist,nbStates,p$parNames,p$bounds,Par,m$conditions$cons,m$conditions$workcons,m$conditions$zeroInflation,m$conditions$oneInflation,m$conditions$circularAngleMean)
+    DMinputs<-getDM(data,inputs$DM,inputs$dist,nbStates,p$parNames,p$bounds,Par,m$conditions$cons,m$conditions$workcons,m$conditions$zeroInflation,m$conditions$oneInflation,m$conditions$circularAngleMean)
     m$conditions$fullDM <- DMinputs$fullDM
     m$mod$estimate <- n2w(Par,p$bounds,beta,m$Par$beta$delta$est,nbStates,inputs$estAngleMean,inputs$DM,DMinputs$cons,DMinputs$workcons,p$Bndind)
   } else {
     beta <- m$mle$beta
     delta <- m$mle$delta
+  }
+  
+  consensus <- vector('list',length(distnames))
+  names(consensus) <- distnames
+  
+  for(i in distnames){
+    if(dist[[i]]=="vmConsensus"){
+      consensus[[i]] <- TRUE
+      dist[[i]] <- gsub("Consensus","",dist[[i]])
+    } else consensus[[i]] <- FALSE
   }
   
   Fun <- lapply(dist,function(x) paste("p",x,sep=""))
@@ -121,10 +153,19 @@ pseudoRes <- function(m)
   names(nc) <- names(meanind) <- distnames
   for(i in distnames){
     nc[[i]] <- apply(m$conditions$fullDM[[i]],1:2,function(x) !all(unlist(x)==0))
-    if(m$conditions$circularAngleMean[[i]]) meanind[[i]] <- which((apply(m$conditions$fullDM[[i]][1:nbStates,,drop=FALSE],1,function(x) !all(unlist(x)==0))))
+    if(m$conditions$circularAngleMean[[i]]) {
+      meanind[[i]] <- which((apply(m$conditions$fullDM[[i]][1:nbStates,,drop=FALSE],1,function(x) !all(unlist(x)==0))))
+      # deal with angular covariates that are exactly zero
+      if(length(meanind[[i]])){
+        angInd <- which(is.na(match(gsub("cos","",gsub("sin","",colnames(nc[[i]]))),colnames(nc[[i]]),nomatch=NA)))
+        sinInd <- colnames(nc[[i]])[which(grepl("sin",colnames(nc[[i]])[angInd]))]
+        nc[[i]][meanind[[i]],sinInd]<-ifelse(nc[[i]][meanind[[i]],sinInd],nc[[i]][meanind[[i]],sinInd],nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)])
+        nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)]<-ifelse(nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)],nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)],nc[[i]][meanind[[i]],sinInd])
+      }
+    }
   }
   
-  par <- w2n(m$mod$estimate,m$conditions$bounds,lapply(m$conditions$fullDM,function(x) nrow(x)/nbStates),nbStates,nbCovs,m$conditions$estAngleMean,m$conditions$circularAngleMean,m$conditions$stationary,m$conditions$cons,m$conditions$fullDM,m$conditions$DMind,m$conditions$workcons,nbObs,dist,m$conditions$Bndind,nc,meanind,m$covsDelta)
+  par <- w2n(m$mod$estimate,m$conditions$bounds,lapply(m$conditions$fullDM,function(x) nrow(x)/nbStates),nbStates,nbCovs,m$conditions$estAngleMean,m$conditions$circularAngleMean,consensus,m$conditions$stationary,m$conditions$cons,m$conditions$fullDM,m$conditions$DMind,m$conditions$workcons,nbObs,dist,m$conditions$Bndind,nc,meanind,m$covsDelta,m$conditions$workBounds)
   
   if(nbStates>1)
     trMat <- trMatrix_rcpp(nbStates,beta,as.matrix(covs))

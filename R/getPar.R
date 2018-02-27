@@ -26,21 +26,28 @@ getPar<-function(m){
   distnames <- names(dist)
   DM <- m$conditions$DM
   
+  parCount<- lapply(m$conditions$fullDM,ncol)
+  for(i in distnames[unlist(m$conditions$circularAngleMean)]){
+    parCount[[i]] <- length(unique(gsub("cos","",gsub("sin","",colnames(m$conditions$fullDM[[i]])))))
+  }
+  parindex <- c(0,cumsum(unlist(parCount)))
+  names(parindex) <- c(distnames,"beta")
+  
   Par <- list()
   if(is.miSum(m)){
     m$mle<-lapply(m$Par$real[distnames],function(x) x$est)
     for(i in distnames){
       if(!is.null(DM[[i]]))
-        m$mle[[i]]<-(m$Par$beta[[i]]$est-m$conditions$workcons[[i]])^(1/m$conditions$cons[[i]])
+        m$mle[[i]]<-nw2w((m$Par$beta[[i]]$est-m$conditions$workcons[[i]])^(1/m$conditions$cons[[i]]),m$conditions$workBounds[[i]])
       else if(dist[[i]] %in% angledists & !m$conditions$estAngleMean[[i]])
         m$mle[[i]]<-m$mle[[i]][-1,]
       Par[[i]] <- c(t(unname(m$mle[[i]])))
     }
-    beta <- unname(m$Par$beta$beta$est)
+    beta <- unname(nw2w(m$Par$beta$beta$est,m$conditions$workBounds$beta))
     if(!length(attr(terms.formula(m$conditions$formulaDelta),"term.labels"))){
       delta <- unname(m$Par$real$delta$est[1,])
     } else {
-      delta <- unname(m$Par$beta$delta$est)
+      delta <- unname(nw2w(m$Par$beta$delta$est,m$conditions$workBounds$delta))
     }
   } else {
     for(i in distnames){
@@ -49,14 +56,14 @@ getPar<-function(m){
         if(dist[[i]] %in% angledists & !m$conditions$estAngleMean[[i]]) 
           par <- par[-1,]
         par <- c(t(par))
-      } else par <- unname((m$CIbeta[[i]]$est-m$conditions$workcons[[i]])^(1/m$conditions$cons[[i]]))
+      } else par <- unname(m$mod$estimate[parindex[[i]]+1:parCount[[i]]])#unname(nw2w((m$CIbeta[[i]]$est-m$conditions$workcons[[i]])^(1/m$conditions$cons[[i]]),m$conditions$workBounds[[i]]))
       Par[[i]] <- par
     }
-    beta <- unname(m$mle$beta)
+    beta <- unname(matrix(m$mod$estimate[parindex[["beta"]]+1:length(m$mle$beta)],nrow(m$mle$beta),ncol(m$mle$beta)))#unname(nw2w(m$mle$beta,m$conditions$workBounds$beta))
     if(!length(attr(terms.formula(m$conditions$formulaDelta),"term.labels"))){
       delta <- unname(m$mle$delta[1,])
     } else {
-      delta <- unname(m$CIbeta$delta$est)
+      delta <- unname(matrix(m$mod$estimate[parindex[["beta"]]+length(m$mle$beta)+1:length(m$CIbeta$delta$est)],nrow(m$CIbeta$delta$est),ncol(m$CIbeta$delta$est)))#unname(nw2w(m$CIbeta$delta$est,m$conditions$workBounds$delta))
     }
   }
   list(Par=Par,beta=beta,delta=delta)

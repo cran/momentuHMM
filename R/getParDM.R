@@ -39,7 +39,7 @@
 #' \code{DM=list(step=matrix(c(1,0,0,0,'cov1',0,0,0,0,1,0,0,0,'cov1',0,0,0,0,1,0,0,0,0,1),4,6))}
 #' where the 4 rows correspond to the state-dependent paramaters (mean_1,mean_2,sd_1,sd_2) and the 6 columns correspond to the regression 
 #' coefficients. 
-#' @param cons An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
+#' @param cons Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
 #' for each data stream. While there could be other uses, primarily intended to constrain specific parameters to be positive. For example, 
 #' \code{cons=list(step=c(1,2,1,1))} raises the second parameter to the second power. Default=NULL, which simply raises all parameters to 
 #' the power of 1. \code{cons} is ignored for any given data stream unless \code{DM} is specified.
@@ -47,6 +47,9 @@
 #' distribution parameters for each data stream. For example, for a 2-state model using the wrapped Cauchy ('wrpcauchy') distribution for 
 #' a data stream named 'angle' with \code{estAngleMean$angle=TRUE)}, \code{userBounds=list(angle=matrix(c(-pi,-pi,-1,-1,pi,pi,1,1),4,2))} 
 #' specifies (-1,1) bounds for the concentration parameters instead of the default [0,1) bounds.
+#' @param workBounds An optional named list of 2-column matrices specifying bounds on the working scale of the probability distribution, transition probability, and initial distribution parameters. For each matrix, the first column pertains to the lower bound and the second column the upper bound.
+#' For data streams, each element of \code{workBounds} should be a k x 2 matrix with the same name of the corresponding element of 
+#' \code{Par0}, where k is the number of parameters. For transition probability parameters, the corresponding element of \code{workBounds} must be a k x 2 matrix named ``beta'', where k=\code{length(beta0)}. For initial distribution parameters, the corresponding element of \code{workBounds} must be a k x 2 matrix named ``delta'', where k=\code{length(delta0)}.
 #' @param workcons An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
 #' each data stream. Warning: use of \code{workcons} is recommended only for advanced users implementing unusual parameter constraints 
 #' through a combination of \code{DM}, \code{cons}, and \code{workcons}. \code{workcons} is ignored for any given data stream unless \code{DM} is specified.
@@ -102,7 +105,11 @@ getParDM<-function(data=data.frame(),nbStates,dist,
                  oneInflation=NULL,
                  estAngleMean=NULL,
                  circularAngleMean=NULL,
-                 DM=NULL,cons=NULL,userBounds=NULL,workcons=NULL){
+                 DM=NULL,cons=NULL,userBounds=NULL,workBounds=NULL,workcons=NULL){
+  
+  if(!is.null(cons)) warning("cons argument is deprecated in momentuHMM >= 1.4.0.  Please use workBounds instead.")
+  if(!is.null(workcons)) warning("workcons argument is deprecated in momentuHMM >= 1.4.0.  Please use workBounds instead.")
+  if(!is.null(workBounds) & (!is.null(cons) | !is.null(workcons))) stop("workBounds cannot be specified when using deprecated arguments cons or workcons; either workBounds or both cons and workcons must be NULL")
   
   ## check that the data is a momentuHMMData object or valid data frame
   if(!is.momentuHMMData(data))
@@ -189,13 +196,55 @@ getParDM<-function(data=data.frame(),nbStates,dist,
   }
   inputs <- checkInputs(nbStates,dist,Par,estAngleMean,circularAngleMean,zeroInflation,oneInflation,DM,userBounds,cons,workcons,stateNames=NULL,checkInflation = TRUE)
   
-  DMinputs<-getDM(tempCovs,inputs$DM,dist,nbStates,inputs$p$parNames,inputs$p$bounds,Par,inputs$cons,inputs$workcons,zeroInflation,oneInflation,inputs$circularAngleMean,FALSE)
+  DMinputs<-getDM(tempCovs,inputs$DM,inputs$dist,nbStates,inputs$p$parNames,inputs$p$bounds,Par,inputs$cons,inputs$workcons,zeroInflation,oneInflation,inputs$circularAngleMean,FALSE)
   fullDM <- DMinputs$fullDM
   if(length(data))
-    DMind <- getDM(data,inputs$DM,dist,nbStates,inputs$p$parNames,inputs$p$bounds,Par,inputs$cons,inputs$workcons,zeroInflation,oneInflation,inputs$circularAngleMean,FALSE)$DMind
+    DMind <- getDM(data,inputs$DM,inputs$dist,nbStates,inputs$p$parNames,inputs$p$bounds,Par,inputs$cons,inputs$workcons,zeroInflation,oneInflation,inputs$circularAngleMean,FALSE)$DMind
   else DMind <- DMinputs$DMind
     cons <- DMinputs$cons
   workcons <- DMinputs$workcons
+  
+  nc <- meanind <- vector('list',length(distnames))
+  names(nc) <- names(meanind) <- distnames
+  for(i in distnames){
+    nc[[i]] <- apply(fullDM[[i]],1:2,function(x) !all(unlist(x)==0))
+    # deal with factors
+    if(length(tempCovs)){
+      for(j in names(which(unlist(lapply(tempCovs,function(x) inherits(x,"factor")))))){
+        if(any(grepl(j,inputs$DM[[i]]))){
+          tmpCov <- tempCovs
+          for(jj in levels(tempCovs[[j]])){
+            tmpCov[[j]] <- factor(jj,levels=levels(tempCovs[[j]]))
+            tmpgDM<-getDM(tmpCov,inputs$DM[i],inputs$dist[i],nbStates,inputs$p$parNames[i],inputs$p$bounds[i],Par[i],inputs$cons[i],inputs$workcons[i],zeroInflation[i],oneInflation[i],inputs$circularAngleMean[i],FALSE)$fullDM[[i]]
+            nc[[i]] <- nc[[i]] + apply(tmpgDM,1:2,function(x) !all(unlist(x)==0))
+          }
+        }
+      }
+    }
+    nc[[i]] <- nc[[i]]>0
+    if(inputs$circularAngleMean[[i]]) {
+      meanind[[i]] <- which((apply(fullDM[[i]][1:nbStates,,drop=FALSE],1,function(x) !all(unlist(x)==0))))
+      # deal with angular covariates that are exactly zero
+      if(length(meanind[[i]])){
+        angInd <- which(is.na(match(gsub("cos","",gsub("sin","",colnames(nc[[i]]))),colnames(nc[[i]]),nomatch=NA)))
+        sinInd <- colnames(nc[[i]])[which(grepl("sin",colnames(nc[[i]])[angInd]))]
+        nc[[i]][meanind[[i]],sinInd]<-ifelse(nc[[i]][meanind[[i]],sinInd],nc[[i]][meanind[[i]],sinInd],nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)])
+        nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)]<-ifelse(nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)],nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)],nc[[i]][meanind[[i]],sinInd])
+      }
+    }
+  }
+  
+  parCount<- lapply(fullDM,ncol)
+  for(i in distnames[unlist(inputs$circularAngleMean)]){
+    parCount[[i]] <- length(unique(gsub("cos","",gsub("sin","",colnames(fullDM[[i]])))))
+  }
+  parindex <- c(0,cumsum(unlist(parCount))[-length(fullDM)])
+  names(parindex) <- distnames
+  
+  if(is.null(workBounds)) {
+    workBounds <- vector('list',length(distnames))
+    names(workBounds) <- distnames
+  }
   
   wpar <- Par
   for(i in distnames){
@@ -259,10 +308,11 @@ getParDM<-function(data=data.frame(),nbStates,dist,
         if(length(ind1)){
           if(inputs$estAngleMean[[i]]){
             
-            p<-numeric(ncol(fullDM[[i]]))
-            meanind<-which((apply(fullDM[[i]][1:nbStates,,drop=FALSE],2,function(x) !all(unlist(x)==0))))
+            p<-numeric(parCount[[i]])
             
             if(!inputs$circularAngleMean[[i]]) {
+              
+              meanind<-which((apply(fullDM[[i]][1:nbStates,,drop=FALSE],2,function(x) !all(unlist(x)==0))))
               
               asvd<-svd(fullDM[[i]][gbInd,,drop=FALSE][ind1,meanind,drop=FALSE])
               adiag <- diag(x=1/asvd$d,nrow=ifelse(length(asvd$d)>1,length(asvd$d),1),ncol=ifelse(length(asvd$d)>1,length(asvd$d),1))
@@ -289,43 +339,37 @@ getParDM<-function(data=data.frame(),nbStates,dist,
             } else {
               
               meanind1<-which((apply(fullDM[[i]][1:nbStates,,drop=FALSE],1,function(x) !all(unlist(x)==0))))
-              meanind2<-which((apply(fullDM[[i]][1:nbStates,,drop=FALSE],2,function(x) !all(unlist(x)==0))))
+              meanind2<-which(colSums(nc[[i]][1:nbStates,,drop=FALSE])>0)#which(match(gsub("cos","",gsub("sin","",colnames(fullDM[[i]]))),gsub("cos","",names(which((apply(fullDM[[i]][meanind1,,drop=FALSE],2,function(x) !all(unlist(x)==0)))))),nomatch=0)>0)
+              #if(length(meanind2)) meanind2 <- sort(c(meanind2,meanind2-1))
               xmat <- fullDM[[i]][gbInd,,drop=FALSE][meanind1,meanind2,drop=FALSE]
-              nc<-apply(xmat,1:2,function(x) !all(unlist(x)==0))
+              #nc<-apply(xmat,1:2,function(x) !all(unlist(x)==0))
               
-              solveatan2<-function(x,theta,covs,cons,workcons){
-                Xvec <- x^cons+workcons
-                XB<-rep(0,length(meanind1))
-                XB1<-XB2<-rep(0,length(meanind1))
-                for(i in 1:length(meanind1)){
-                  ncind <- which(nc[meanind1[i],])
-                  XB1[i]<-sin(covs[i,ncind])%*%Xvec[ncind]
-                  XB2[i]<-cos(covs[i,ncind])%*%Xvec[ncind]
-                  XB[i] <- atan2(XB1[i],1+XB2[i])
-                }
-                c(abs(theta - XB),rep(0,length(x)-length(theta)))
+              solveatan2<-function(x,theta,covs,cons,workcons,nbStates,nc,meanind,oparms){
+                #Xvec <- x^cons+workcons
+                XB<-getXB(covs,1,c(x,rep(1,oparms)),cons,workcons,TRUE,TRUE,FALSE,nbStates,nc,meanind)[meanind,]
+                c(abs(theta - XB),rep(0,max(0,length(x)-length(theta))))
               }
 
-              if(length(meanind1)) p[meanind2] <- nleqslv::nleqslv(x=rep(1,ncol(xmat)),fn=solveatan2,theta=par[meanind1],covs=xmat,cons=cons[[i]][meanind2],workcons=workcons[[i]][meanind2],control=list(allowSingular=TRUE))$x
+              if(length(meanind1)) p[1:(length(meanind2)/2)] <- nleqslv::nleqslv(x=rep(1,length(meanind2)/2),fn=solveatan2,theta=par[meanind1],covs=fullDM[[i]],cons=cons[[i]],workcons=workcons[[i]],nbStates=nbStates,nc=nc[[i]],meanind=meanind[[i]],oparms=parCount[[i]]-length(meanind2)/2,control=list(allowSingular=TRUE))$x[1:(length(meanind2)/2)]
               
               meanind<-which((apply(fullDM[[i]][nbStates+1:nbStates,,drop=FALSE],2,function(x) !all(unlist(x)==0))))
               
               if(length(ind21)){
                 asvd<-svd(fullDM[[i]][gbInd,,drop=FALSE][ind21,meanind,drop=FALSE])
                 adiag <- diag(x=1/asvd$d,nrow=ifelse(length(asvd$d)>1,length(asvd$d),1),ncol=ifelse(length(asvd$d)>1,length(asvd$d),1))
-                p[meanind] <- ((asvd$v %*% adiag %*% t(asvd$u) %*% log(par[ind21]-a[ind21]))-workcons[[i]][meanind])^(1/cons[[i]][meanind])
+                p[meanind-length(meanind2)/2] <- ((asvd$v %*% adiag %*% t(asvd$u) %*% log(par[ind21]-a[ind21]))-workcons[[i]][meanind-length(meanind2)/2])^(1/cons[[i]][meanind-length(meanind2)/2])
               }
               
               if(length(ind22)){
                 asvd<-svd(fullDM[[i]][gbInd,,drop=FALSE][ind22,meanind,drop=FALSE])
                 adiag <- diag(x=1/asvd$d,nrow=ifelse(length(asvd$d)>1,length(asvd$d),1),ncol=ifelse(length(asvd$d)>1,length(asvd$d),1))
-                p[meanind] <- ((asvd$v %*% adiag %*% t(asvd$u) %*% logit((par[ind22]-a[ind22])/(b[ind22]-a[ind22])))-workcons[[i]][meanind])^(1/cons[[i]][meanind])
+                p[meanind-length(meanind2)/2] <- ((asvd$v %*% adiag %*% t(asvd$u) %*% logit((par[ind22]-a[ind22])/(b[ind22]-a[ind22])))-workcons[[i]][meanind-length(meanind2)/2])^(1/cons[[i]][meanind-length(meanind2)/2])
               }
               
               if(length(ind23)){
                 asvd<-svd(fullDM[[i]][gbInd,,drop=FALSE][ind23,meanind,drop=FALSE])
                 adiag <- diag(x=1/asvd$d,nrow=ifelse(length(asvd$d)>1,length(asvd$d),1),ncol=ifelse(length(asvd$d)>1,length(asvd$d),1))
-                p[meanind] <- ((asvd$v %*% adiag %*% t(asvd$u) %*% (-log(-par[ind23]+b[ind23])))-workcons[[i]][meanind])^(1/cons[[i]][meanind])
+                p[meanind-length(meanind2)/2] <- ((asvd$v %*% adiag %*% t(asvd$u) %*% (-log(-par[ind23]+b[ind23])))-workcons[[i]][meanind-length(meanind2)/2])^(1/cons[[i]][meanind-length(meanind2)/2])
               }
             
             }
@@ -355,6 +399,14 @@ getParDM<-function(data=data.frame(),nbStates,dist,
         }
       }
       if(any(!is.finite(p))) stop(i," working scale parameters are not finite. Check natural parameter values, bounds, and constraints.")
+      
+      workBounds[i] <- getWorkBounds(workBounds[i],i,p,parindex[i]-parindex[[i]],parCount,inputs$DM)[i]
+      if(any(p<workBounds[[i]][,1]) | any(p>workBounds[[i]][,2])) stop("could not find valid working scale parameters for ",i," that satisfy workBounds")
+      
+      p <- nw2w(p,workBounds[[i]])
+      
+      if(any(!is.finite(p))) stop("could not find valid working scale parameters for ",i," that satisfy workBounds")
+      
       wpar[[i]]<-c(p)      
     }
   }

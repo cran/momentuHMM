@@ -4,10 +4,10 @@
 #' Fit a (multivariate) hidden Markov model to the data provided, using numerical optimization of the log-likelihood
 #' function.
 #'
-#' @param data An object \code{momentuHMMData}.
+#' @param data A \code{\link{momentuHMMData}} object.
 #' @param nbStates Number of states of the HMM.
 #' @param dist A named list indicating the probability distributions of the data streams. Currently
-#' supported distributions are 'bern', 'beta', 'exp', 'gamma', 'lnorm', 'norm', 'pois', 'vm', 'weibull', and 'wrpcauchy'. For example,
+#' supported distributions are 'bern', 'beta', 'exp', 'gamma', 'lnorm', 'norm', 'pois', 'vm', 'vmConsensus', 'weibull', and 'wrpcauchy'. For example,
 #' \code{dist=list(step='gamma', angle='vm', dives='pois')} indicates 3 data streams ('step', 'angle', and 'dives')
 #' and their respective probability distributions ('gamma', 'vm', and 'pois').  The names of the data streams 
 #' (e.g., 'step', 'angle', 'dives') must match component names in \code{data}.
@@ -34,6 +34,7 @@
 #' distributions ('vm' and 'wrpcauchy'). For example, \code{estAngleMean=list(angle=TRUE)} indicates the angle mean is to be 
 #' estimated for 'angle'.  Default is \code{NULL}, which assumes any angle means are fixed to zero and are not to be estimated. 
 #' Any \code{estAngleMean} elements corresponding to data streams that do not have angular distributions are ignored.
+#' \code{estAngleMean} is also ignored for any 'vmConsensus' data streams (because the angle mean must be estimated in consensus models).
 #' @param circularAngleMean An optional named list indicating whether to use circular-linear (FALSE) or circular-circular (TRUE) 
 #' regression on the mean of circular distributions ('vm' and 'wrpcauchy') for turning angles.  For example, 
 #' \code{circularAngleMean=list(angle=TRUE)} indicates the angle mean is be estimated for 'angle' using circular-circular 
@@ -44,7 +45,7 @@
 #' using previous movement direction as the reference angle. Default is \code{NULL}, which assumes circular-linear regression is 
 #' used for any angular distributions for which the mean angle is to be estimated. \code{circularAngleMean} elements corresponding to angular data 
 #' streams are ignored unless the corresponding element of \code{estAngleMean} is \code{TRUE}. Any \code{circularAngleMean} elements 
-#' corresponding to data streams that do not have angular distributions are ignored.
+#' corresponding to data streams that do not have angular distributions are ignored. \code{circularAngleMean} is also ignored for any 'vmConsensus' data streams (because the consensus model is a circular-circular regression model).
 #' @param formula Regression formula for the transition probability covariates. Default: \code{~1} (no covariate effect). In addition to allowing standard functions in R formulas
 #' (e.g., \code{cos(cov)}, \code{cov1*cov2}, \code{I(cov^2)}), special functions include \code{cosinor(cov,period)} for modeling cyclical patterns, spline functions 
 #' (\code{\link[splines]{bs}}, \code{\link[splines]{ns}}, \code{\link[splines2]{bSpline}}, \code{\link[splines2]{cSpline}}, \code{\link[splines2]{iSpline}}, and \code{\link[splines2]{mSpline}}),
@@ -53,12 +54,12 @@
 #' @param formulaDelta Regression formula for the initial distribution. Default: \code{~1} (no covariate effect). Standard functions in R formulas are allowed (e.g., \code{cos(cov)}, \code{cov1*cov2}, \code{I(cov^2)}).
 #' @param stationary \code{FALSE} if there are covariates in \code{formula} or \code{formulaDelta}. If \code{TRUE}, the initial distribution is considered
 #' equal to the stationary distribution. Default: \code{FALSE}.
-#' @param verbose Determines the print level of the optimizer. The default value of 0 means that no
+#' @param verbose Deprecated: please use \code{print.level} in \code{nlmPar} argument. Determines the print level of the \code{nlm} optimizer. The default value of 0 means that no
 #' printing occurs, a value of 1 means that the first and last iterations of the optimization are
-#' detailed, and a value of 2 means that each iteration of the optimization is detailed.
-#' @param nlmPar List of parameters to pass to the optimization function \code{nlm} (which should be either
-#' '\code{gradtol}', '\code{stepmax}', '\code{steptol}', or '\code{iterlim}' -- see \code{nlm}'s documentation
-#' for more detail)
+#' detailed, and a value of 2 means that each iteration of the optimization is detailed. Ignored unless \code{optMethod="nlm"}.
+#' @param nlmPar List of parameters to pass to the optimization function \code{\link[stats]{nlm}} (which should be either
+#' \code{print.level}, \code{gradtol}, \code{stepmax}, \code{steptol}, \code{iterlim}, or \code{hessian} -- see \code{nlm}'s documentation
+#' for more detail). Ignored unless \code{optMethod="nlm"}.
 #' @param fit \code{TRUE} if an HMM should be fitted to the data, \code{FALSE} otherwise.
 #' If fit=\code{FALSE}, a model is returned with the MLE replaced by the initial parameters given in
 #' input. This option can be used to assess the initial parameters, parameter bounds, etc. Default: \code{TRUE}.
@@ -74,17 +75,21 @@
 #' Design matrices specified using formulas allow standard functions in R formulas
 #' (e.g., \code{cos(cov)}, \code{cov1*cov2}, \code{I(cov^2)}).  Special formula functions include \code{cosinor(cov,period)} for modeling cyclical patterns, spline functions 
 #' (\code{\link[splines]{bs}}, \code{\link[splines]{ns}}, \code{\link[splines2]{bSpline}}, \code{\link[splines2]{cSpline}}, \code{\link[splines2]{iSpline}}, and \code{\link[splines2]{mSpline}}), 
-#' and state-specific formulas (see details). Any formula terms that are not state-specific are included on the parameters for all \code{nbStates} states.
-#' @param cons An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
+#' \code{angleFormula(cov,strength)} for the angle mean of circular-circular regression models, and state-specific formulas (see details). Any formula terms that are not state-specific are included on the parameters for all \code{nbStates} states.
+#' @param cons Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
 #' for each data stream. While there could be other uses, primarily intended to constrain specific parameters to be positive. For example, 
 #' \code{cons=list(step=c(1,2,1,1))} raises the second parameter to the second power. Default=NULL, which simply raises all parameters to 
 #' the power of 1. \code{cons} is ignored for any given data stream unless \code{DM} is specified.
 #' @param userBounds An optional named list of 2-column matrices specifying bounds on the natural (i.e, real) scale of the probability 
-#' distribution parameters for each data stream. For example, for a 2-state model using the wrapped Cauchy ('wrpcauchy') distribution for 
+#' distribution parameters for each data stream. For each matrix, the first column pertains to the lower bound and the second column the upper bound. For example, for a 2-state model using the wrapped Cauchy ('wrpcauchy') distribution for 
 #' a data stream named 'angle' with \code{estAngleMean$angle=TRUE)}, \code{userBounds=list(angle=matrix(c(-pi,-pi,-1,-1,pi,pi,1,1),4,2,dimnames=list(c("mean_1",
 #' "mean_2","concentration_1","concentration_2"))))} 
 #' specifies (-1,1) bounds for the concentration parameters instead of the default [0,1) bounds.
-#' @param workcons An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
+#' @param workBounds An optional named list of 2-column matrices specifying bounds on the working scale of the probability distribution, transition probability, and initial distribution parameters. For each matrix, the first column pertains to the lower bound and the second column the upper bound.
+#' For data streams, each element of \code{workBounds} should be a k x 2 matrix with the same name of the corresponding element of 
+#' \code{Par0}, where k is the number of parameters. For transition probability parameters, the corresponding element of \code{workBounds} must be a k x 2 matrix named ``beta'', where k=\code{length(beta0)}. For initial distribution parameters, the corresponding element of \code{workBounds} must be a k x 2 matrix named ``delta'', where k=\code{length(delta0)}.
+#' \code{workBounds} is ignored for any given data stream unless \code{DM} is also specified.
+#' @param workcons Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
 #' each data stream. Warning: use of \code{workcons} is recommended only for advanced users implementing unusual parameter constraints 
 #' through a combination of \code{DM}, \code{cons}, and \code{workcons}. \code{workcons} is ignored for any given data stream unless \code{DM} is specified.
 #' @param stateNames Optional character vector of length nbStates indicating state names.
@@ -93,12 +98,20 @@
 #' of rows of 'data'; each element should either be an integer (the value of the known states) or NA if
 #' the state is not known.
 #' @param fixPar An optional list of vectors indicating parameters which are assumed known prior to fitting the model. Default: NULL 
-#' (no parameters are fixed). For data streams, each element of \code{fixPar} should be a vector of the same name and length as the corresponding element of 
-#' \code{Par0}. For transition probability parameters, the corresponding element of \code{fixPar} must be named ``beta'' and have the same dimensions as \code{beta0}. For initial distribution parameters, the corresponding element of \code{fixPar} must be named ``delta'' and have the same dimensions as \code{delta0}. Each parameter should either be numeric (the fixed value of the parameter) or NA if the parameter is to be estimated. For each data stream, \code{fixPar} parameters must be on the same scale as \code{Par0} (e.g. if \code{DM} is specified for a given data stream, any fixed parameters for this data stream must be on the working scale).  Any fixed values for the transition probabilities (\code{beta}) must be on the working scale (i.e. the same scale as \code{beta0}). Any fixed values for the initial distribution (\code{delta}) must be on the natural scale (i.e. the same scale as \code{delta0}).
+#' (no parameters are fixed). For data streams, each element of \code{fixPar} should be a vector of the same name and length as the corresponding element of \code{Par0}. 
+#' For transition probability parameters, the corresponding element of \code{fixPar} must be named ``beta'' and have the same dimensions as \code{beta0}. 
+#' For initial distribution parameters, the corresponding element of \code{fixPar} must be named ``delta'' and have the same dimensions as \code{delta0}. 
+#' Each parameter should either be numeric (the fixed value of the parameter) or NA if the parameter is to be estimated. Corresponding \code{fixPar} parameters must be on the same scale as \code{Par0} (e.g. if \code{DM} is specified for a given data stream, any fixed parameters for this data stream must be on the working scale), \code{beta0}, and \code{delta0}.
 #' @param retryFits Non-negative integer indicating the number of times to attempt to iteratively fit the model using random perturbations of the current parameter estimates as the 
-#' initial values for likelihood optimization. Standard normal perturbations are used on the working scale probability distribution parameters, while
-#' Normal(0,10^2) pertubations are used for working scale transition probability parameters. Default: 0.  When \code{retryFits>0}, the model with the largest log likelihood 
-#' value is returned.  Ignored if \code{fit=FALSE}.
+#' initial values for likelihood optimization. Normal(0,\code{retrySD}^2) perturbations are used on the working scale parameters. Default: 0.  When \code{retryFits>0}, the model with the largest log likelihood 
+#' value is returned. Ignored if \code{fit=FALSE}.
+#' @param retrySD An optional list of scalars or vectors indicating the standard deviation to use for normal perturbations of each working scale parameter when \code{retryFits>0}. For data streams, each element of \code{retrySD} should be a vector of the same name and length as the corresponding element of \code{Par0} (if a scalar is provided, then this value will be used for all working parameters of the data stream). 
+#' For transition probability parameters, the corresponding element of \code{retrySD} must be named ``beta'' and have the same dimensions as \code{beta0}. 
+#' For initial distribution parameters, the corresponding element of \code{retrySD} must be named ``delta'' and have the same dimensions as \code{delta0} (if \code{delta0} is on the working scale) or be of length \code{nbStates-1} (if \code{delta0} is on the natural scale).
+#' Default: NULL (in which case \code{retrySD}=1 for data stream parameters and \code{retrySD}=10 for initial distribution and state transition probabilities). Ignored unless \code{retryFits>0}.
+#' @param optMethod The optimization method to be used.  Can be ``nlm'' (the default; see \code{\link[stats]{nlm}}), ``Nelder-Mead'' (see \code{\link[stats]{optim}}), or ``SANN'' (see \code{\link[stats]{optim}}).
+#' @param control A list of control parameters to be passed to \code{\link[stats]{optim}} (ignored unless \code{optMethod="Nelder-Mead"} or \code{optMethod="SANN"}).
+#' @param prior A function that returns the log-density of the working scale parameter prior distribution(s). See 'Details'.
 #'
 #' @return A \code{\link{momentuHMM}} object, i.e. a list of:
 #' \item{mle}{A named list of the maximum likelihood estimates of the parameters of the model (if the numerical algorithm
@@ -109,9 +122,9 @@
 #' \item{CIreal}{Standard errors and 95\% confidence intervals on the real (i.e., natural) scale of parameters}
 #' \item{CIbeta}{Standard errors and 95\% confidence intervals on the beta (i.e., working) scale of parameters}
 #' \item{data}{The momentuHMMData object}
-#' \item{mod}{The object returned by the numerical optimizer \code{nlm}}
+#' \item{mod}{The object returned by the numerical optimizer \code{nlm} or \code{optim}}
 #' \item{conditions}{Conditions used to fit the model, e.g., \code{bounds} (parameter bounds), distributions, \code{zeroInflation},
-#' \code{estAngleMean}, \code{stationary}, \code{formula}, \code{DM}, \code{fullDM} (full design matrix), etc.)}
+#' \code{estAngleMean}, \code{stationary}, \code{formula}, \code{DM}, \code{fullDM} (full design matrix), etc.}
 #' \item{rawCovs}{Raw covariate values for transition probabilities, as found in the data (if any). Used in \code{\link{plot.momentuHMM}}.}
 #' \item{stateNames}{The names of the states.}
 #' \item{knownStates}{Vector of values of the state process which are known.}
@@ -150,10 +163,14 @@
 #' In other words, the mean turning angle is zero when the coefficient(s) B=0.
 #' 
 #' \item Circular-circular regression in \code{momentuHMM} is designed for turning angles (not bearings) as computed by \code{\link{simData}} and \code{\link{prepData}}. 
-#' Any circular-circular regression covariates for time step t should therefore be relative to the previous 
+#' Any circular-circular regression angle covariates for time step t should therefore be relative to the previous 
 #' direction of movement for time step t-1.  In other words, circular-circular regression covariates for time step t should be the turning angle
 #' between the direction of movement for time step t-1 and the standard direction of the covariate relative to the x-axis for time step t.  If provided standard directions in radians relative to the x-axis 
 #' (where 0 = east, pi/2 = north, pi = west, and -pi/2 = south), \code{\link{circAngles}} or \code{\link{prepData}} can perform this calculation for you.  
+#'
+#' When the circular-circular regression model is used, the special function \code{angleStrength(cov,strength,by)} can be used in \code{DM} for the mean of angular distributions (i.e. 'vm', 'vmConsensus', and 'wrpcauchy'),
+#' where \code{cov} is an angle covariate (e.g. wind direction), \code{strength} is a positive real covariate (e.g. wind speed), and \code{by} is an optional factor variable for individual- or group-level effects (e.g. ID, sex). This allows angle covariates to be weighted based on their relative strength or importance at time step t as in
+#' Rivest et al. (2016).  In this case, the link function for the mean angle is atan2((Z * sin(X)) %*% B,1+(Z * cos(X)) %*% B), where X are the angle covariates, Z the strength covariates, and B the angle coefficients (see Rivest et al. 2016). 
 #' 
 #' \item State-specific formulas can be specified in \code{DM} using special formula functions. These special functions can take
 #' the names \code{paste0("state",1:nbStates)} (where the integer indicates the state-specific formula).  For example, 
@@ -172,6 +189,12 @@
 #' of integers indicating the hour of day (\code{0,1,...,23,0,1,...,23,0,1,...}) (note that \code{fitHMM} will not do this for you, the appropriate covariate must be included in \code{data}; see example below). 
 #' The \code{cosinor(x,period)} function converts \code{x} to 2 covariates \code{cosinorCos(x)=cos(2*pi*x/period)} and \code{cosinorSin(x)=sin(2*pi*x/period} for inclusion in the model (i.e., 2 additional parameters per state). The amplitude of the sine wave
 #' is thus \code{sqrt(B_cos^2 + B_sin^2)}, where \code{B_cos} and \code{B_sin} are the working parameters correponding to \code{cosinorCos(x)} and \code{cosinorSin(x)}, respectively (e.g., see Cornelissen 2014).
+#' 
+#' \item Similar to that used in \code{\link{crawlWrap}}, the \code{prior} argument is a user-specified function that returns the log-density of the working scale parameter prior distribution(s). In addition to including prior information about parameters, one area where priors can be particularly useful is for handling numerical issues that can arise when parameters are near a boundary. 
+#' When parameters are near boundaries, they can wander into the ``nether regions'' of the parameter space during optimization. For example, setting \code{prior=function(par) {sum(dnorm(par,0,sd,log=TRUE))}} with a reasonably large \code{sd} (e.g. 100 or 1000) can help prevent working parameters 
+#' from straying too far along the real line.  Here \code{par} is the vector of working scale parameters (as returned by \code{fitHMM}, e.g., see \code{example$m$mod$estimate}) in the following order: data stream working parameters (in order \code{names(dist)}), beta working parameters, and delta working parameters. Instead of specifying the same prior on all parameters, different priors could be specified on different parameters (and not all parameters must have user-specified priors).  For example,
+#' \code{prior=function(par){dnorm(par[3],0,100,log=TRUE)}} would only specify a prior for the third working parameter. Note that the \code{prior} function must return a scalar on the log scale. See 'harbourSealExample.R' in the ``vignettes'' source directory for an example using the \code{prior} argument.
+#' 
 #' }
 #' 
 #' @seealso \code{\link{getParDM}}, \code{\link{prepData}}, \code{\link{simData}}
@@ -370,9 +393,12 @@
 #' Classifying movement behaviour in relation to environmental conditions using hidden Markov models.
 #' Journal of Animal Ecology, 78 (6), 1113-1123.
 #' 
+#' Rivest, LP, Duchesne, T, Nicosia, A, Fortin, D, 2016. A general angular regression model for the analysis of data on animal movement in ecology. 
+#' Journal of the Royal Statistical Society: Series C (Applied Statistics), 65(3):445-463.
+#' 
 #' @export
 #' @importFrom Rcpp evalCpp
-#' @importFrom stats model.matrix get_all_vars nlm terms terms.formula
+#' @importFrom stats model.matrix get_all_vars nlm optim terms terms.formula
 #' @importFrom CircStats dwrpcauchy dvm pvm
 #'
 #' @useDynLib momentuHMM
@@ -381,14 +407,27 @@ fitHMM <- function(data,nbStates,dist,
                    Par0,beta0=NULL,delta0=NULL,
                    estAngleMean=NULL,circularAngleMean=NULL,
                    formula=~1,formulaDelta=~1,stationary=FALSE,
-                   verbose=0,nlmPar=NULL,fit=TRUE,
-                   DM=NULL,cons=NULL,userBounds=NULL,workcons=NULL,
-                   stateNames=NULL,knownStates=NULL,fixPar=NULL,retryFits=0)
+                   verbose=NULL,nlmPar=list(),fit=TRUE,
+                   DM=NULL,cons=NULL,userBounds=NULL,workBounds=NULL,workcons=NULL,
+                   stateNames=NULL,knownStates=NULL,fixPar=NULL,retryFits=0,retrySD=NULL,optMethod="nlm",control=list(),prior=NULL)
 {
   
   #####################
   ## Check arguments ##
   #####################
+  
+  if(!is.null(cons)) warning("cons argument is deprecated in momentuHMM >= 1.4.0.  Please use workBounds instead.")
+  if(!is.null(workcons)) warning("workcons argument is deprecated in momentuHMM >= 1.4.0.  Please use workBounds instead.")
+  if(!is.null(workBounds) & (!is.null(cons) | !is.null(workcons))) stop("workBounds cannot be specified when using deprecated arguments cons or workcons; either workBounds or both cons and workcons must be NULL")
+  if(!is.null(verbose)) {
+    warning("verbose argument is deprecated in momentuHMM >= 1.4.0. Please use print.level in nlmPar argument instead")
+    if(is.null(nlmPar$print.level)){
+      nlmPar$print.level <- verbose
+    } else stop("nlmPar$print.level cannot be specified when using deprecated argument verbose")
+  } else verbose <- 0
+  if(is.null(nlmPar$print.level)){
+    nlmPar$print.level <- verbose
+  } 
   
   # check that the data is a momentuHMMData object
   if(!is.momentuHMMData(data))
@@ -418,6 +457,8 @@ fitHMM <- function(data,nbStates,dist,
   if(!all(distnames %in% names(Par0))) stop(paste0(distnames[which(!(distnames %in% names(Par0)))],collapse=", ")," missing in 'Par0'")
   Par0 <- Par0[distnames]
   
+  match.arg(optMethod,fitMethods)
+  
   stateForms<- terms(formula, specials = paste0("state",1:nbStates))
   newformula<-formula
   if(nbStates>1){
@@ -445,6 +486,9 @@ fitHMM <- function(data,nbStates,dist,
   
   # build design matrix for t.p.m.
   covsCol <- get_all_vars(newformula,data)#rownames(attr(terms(formula),"factors"))#attr(terms(formula),"term.labels")#seq(1,ncol(data))[-match(c("ID","x","y",distnames),names(data),nomatch=0)]
+  if(!all(names(covsCol) %in% names(data))){
+    covsCol <- covsCol[,names(covsCol) %in% names(data),drop=FALSE]
+  }
   covs <- model.matrix(newformula,data)
   if(nrow(covs)!=nrow(data)) stop("covariates cannot contain missing values")
   nbCovs <- ncol(covs)-1 # substract intercept column
@@ -540,12 +584,12 @@ fitHMM <- function(data,nbStates,dist,
     }
   }
 
-  mHind <- (is.null(DM) & is.null(userBounds) & ("step" %in% distnames) & is.null(fixPar) & !length(attr(terms.formula(newformula),"term.labels")) & !length(attr(terms.formula(formulaDelta),"term.labels")) & stationary) # indicator for moveHMMwrap below
+  mHind <- (is.null(DM) & is.null(userBounds) & is.null(workBounds) & ("step" %in% distnames) & is.null(fixPar) & !length(attr(terms.formula(newformula),"term.labels")) & !length(attr(terms.formula(formulaDelta),"term.labels")) & stationary & optMethod=="nlm" & is.null(prior)) # indicator for moveHMMwrap below
   
   inputs <- checkInputs(nbStates,dist,Par0,estAngleMean,circularAngleMean,zeroInflation,oneInflation,DM,userBounds,cons,workcons,stateNames,checkInflation = TRUE)
   p <- inputs$p
   
-  DMinputs<-getDM(data,inputs$DM,dist,nbStates,p$parNames,p$bounds,Par0,inputs$cons,inputs$workcons,zeroInflation,oneInflation,inputs$circularAngleMean)
+  DMinputs<-getDM(data,inputs$DM,inputs$dist,nbStates,p$parNames,p$bounds,Par0,inputs$cons,inputs$workcons,zeroInflation,oneInflation,inputs$circularAngleMean)
   fullDM <- DMinputs$fullDM
   DMind <- DMinputs$DMind
   
@@ -571,16 +615,13 @@ fitHMM <- function(data,nbStates,dist,
                      nbStates-1,"columns."))
     }
   }
-  
-  # check that verbose is in {0,1,2}
-  if(!(verbose %in% c(0,1,2)))
-    stop("verbose must be in {0,1,2}")
 
   # check elements of nlmPar
-  lsPars <- c("gradtol","stepmax","steptol","iterlim")
+  lsPars <- c("print.level","gradtol","stepmax","steptol","iterlim",'hessian')
   if(length(which(!(names(nlmPar) %in% lsPars)))>0)
-    stop("Check the names of the element of 'nlmPar'; they should be in
-         ('gradtol','stepmax','steptol','iterlim')")
+    stop("Check the names of the elements of 'nlmPar'; they should be in
+         ('print.level','gradtol','stepmax','steptol','iterlim','hessian')")
+
 
   ####################################
   ## Prepare initial values for nlm ##
@@ -687,10 +728,80 @@ fitHMM <- function(data,nbStates,dist,
   fixPar <- fixPar[c(distnames,"beta","delta")]
   ofixPar <- ofixPar[c(distnames,"beta","delta")]
   
+  parCount<- lapply(fullDM,ncol)
+  for(i in distnames[unlist(inputs$circularAngleMean)]){
+    parCount[[i]] <- length(unique(gsub("cos","",gsub("sin","",colnames(fullDM[[i]])))))
+  }
+  parindex <- c(0,cumsum(unlist(parCount))[-length(fullDM)])
+  names(parindex) <- distnames
+  
+  if(is.null(workBounds)) {
+    workBounds <- vector('list',length(distnames))
+    names(workBounds) <- distnames
+  }
+  workBounds <- getWorkBounds(workBounds,distnames,Par0,parindex,parCount,inputs$DM,beta0,delta0)
+  
   wpar <- n2w(Par0,p$bounds,beta0,delta0,nbStates,inputs$estAngleMean,inputs$DM,DMinputs$cons,DMinputs$workcons,p$Bndind)
   if(any(!is.finite(wpar))) stop("Scaling error. Check initial parameter values and bounds.")
 
   if(retryFits<0) stop("retryFits must be non-negative")
+  if(retryFits>=1){
+    parmInd <- length(wpar)-(nbCovs+1)*nbStates*(nbStates-1)-ncol(covsDelta)*(nbStates-1)*(!stationary)
+    if(is.null(retrySD)){
+      retrySD <- rep(10,length(wpar))
+      retrySD[1:parmInd] <- 1
+    } else {
+      for(i in distnames){
+        if(is.null(retrySD[[i]])){
+          retrySD[[i]] <- rep(1,parCount[[i]])
+        } else {
+          if(any(!is.numeric(retrySD[[i]]))) stop("retrySD$",i," must be numeric")
+          if(any(retrySD[[i]]<0)) stop("retrySD$",i," must be non-negative")
+          if(length(retrySD[[i]])==1){
+            retrySD[[i]] <- rep(retrySD[[i]],parCount[[i]])
+          } else if(length(retrySD[[i]])!=parCount[[i]]){
+            stop("retrySD$",i," must be of length 1 or ",parCount[[i]])
+          }
+        }
+      }
+      if(nbStates>1){
+        if(is.null(retrySD$beta)){
+          retrySD$beta <- rep(10,length(beta0))
+        } else {
+          if(any(!is.numeric(retrySD$beta))) stop("retrySD$beta must be numeric")
+          if(any(retrySD$beta<0)) stop("retrySD$beta must be non-negative")
+          if(length(retrySD$beta)==1){
+            retrySD$beta <- rep(retrySD$beta,length(beta0))
+          } else if(length(retrySD$beta)!=length(beta0)){
+            stop("retrySD$beta must be of length 1 or ",length(beta0))
+          }
+        }
+        if(is.null(retrySD$delta)){
+          retrySD$delta <- rep(10,length(delta0))
+        } else {
+          if(any(!is.numeric(retrySD$delta))) stop("retrySD$delta must be numeric")
+          if(any(retrySD$delta<0)) stop("retrySD$delta must be non-negative")
+          if(length(retrySD$delta)==1){
+            retrySD$delta <- rep(retrySD$delta,length(delta0))
+          } else if(length(retrySD$delta)!=length(delta0)){
+            stop("retrySD$delta must be of length 1 or ",length(delta0))
+          }
+        }
+      }
+      retrySD <- unlist(retrySD[c(distnames,"beta","delta")])
+    }
+  }
+  
+  if(!is.null(prior)){
+    if(!is.function(prior)) stop("prior must be a function")
+    pr <- tryCatch(prior(wpar),error=function(e) e)
+    if(inherits(pr,"error")){
+      stop("Invalid prior: ",pr)
+    } else {
+      if(length(pr)>1) stop("prior function must return a scalar")
+      if(!is.finite(pr)) stop("prior is not finite")
+    }
+  }
   
   ##################
   ## Optimization ##
@@ -706,8 +817,10 @@ fitHMM <- function(data,nbStates,dist,
   message("-----------------------------------------------------------------------\n")
   for(i in distnames){
     pNames<-p$parNames[[i]]
-    if(inputs$circularAngleMean[[i]]) 
-      pNames[1]<-paste0("circular ",pNames[1])
+    #if(inputs$circularAngleMean[[i]]){ 
+      #pNames[1]<-paste0("circular ",pNames[1])
+      #if(inputs$consensus[[i]]) pNames[2]<-paste0("consensus ",pNames[2])
+    #}
     if(is.null(DM[[i]])){
       message(" ",i," ~ ",dist[[i]],"(",paste0(pNames,"=~1",collapse=", "),")")
     } else if(is.list(DM[[i]])){
@@ -722,33 +835,49 @@ fitHMM <- function(data,nbStates,dist,
   names(nc) <- names(meanind) <- distnames
   for(i in distnames){
     nc[[i]] <- apply(fullDM[[i]],1:2,function(x) !all(unlist(x)==0))
-    if(inputs$circularAngleMean[[i]]) meanind[[i]] <- which((apply(fullDM[[i]][1:nbStates,,drop=FALSE],1,function(x) !all(unlist(x)==0))))
+    if(inputs$circularAngleMean[[i]]) {
+      meanind[[i]] <- which((apply(fullDM[[i]][1:nbStates,,drop=FALSE],1,function(x) !all(unlist(x)==0))))
+      # deal with angular covariates that are exactly zero
+      if(length(meanind[[i]])){
+        angInd <- which(is.na(match(gsub("cos","",gsub("sin","",colnames(nc[[i]]))),colnames(nc[[i]]),nomatch=NA)))
+        sinInd <- colnames(nc[[i]])[which(grepl("sin",colnames(nc[[i]])[angInd]))]
+        nc[[i]][meanind[[i]],sinInd]<-ifelse(nc[[i]][meanind[[i]],sinInd],nc[[i]][meanind[[i]],sinInd],nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)])
+        nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)]<-ifelse(nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)],nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)],nc[[i]][meanind[[i]],sinInd])
+      }
+    }
   }
 
   if(fit) {
+    
+    hessian <- TRUE
+    if(!is.null(control$hessian)){
+      hessian <- control$hessian
+      control$hessian <- NULL
+    }
     
     fitCount<-0
     
     while(fitCount<=retryFits){
       
       # just use moveHMM if simpler models are specified
-      if(all(distnames %in% c("step","angle")) & mHind){
-        fullPar<-w2n(wpar,p$bounds,p$parSize,nbStates,nbCovs,inputs$estAngleMean,inputs$circularAngleMean,stationary,DMinputs$cons,fullDM,DMind,DMinputs$workcons,nrow(data),dist,p$Bndind,nc,meanind,covsDelta)
+      if(all(distnames %in% c("step","angle")) & all(unlist(dist) %in% moveHMMdists) & mHind){
+        fullPar<-w2n(wpar,p$bounds,p$parSize,nbStates,nbCovs,inputs$estAngleMean,inputs$circularAngleMean,inputs$consensus,stationary,DMinputs$cons,fullDM,DMind,DMinputs$workcons,nrow(data),dist,p$Bndind,nc,meanind,covsDelta,workBounds)
         Par<-lapply(fullPar[distnames],function(x) x[,1])
         for(i in distnames){
           if(dist[[i]] %in% angledists & !inputs$estAngleMean[[i]])
             Par[[i]]<-Par[[i]][-(1:nbStates)]
         }
         startTime <- proc.time()
-        withCallingHandlers(curmod<-tryCatch(moveHMMwrap(data,nbStates,dist,Par,fullPar$beta,fullPar$delta[1,],inputs$estAngleMean,newformula,stationary,verbose,nlmPar,fit,nbAnimals)$mod,error=function(e) e),warning=h)
+        withCallingHandlers(curmod<-tryCatch(moveHMMwrap(data,nbStates,dist,Par,fullPar$beta,fullPar$delta[1,],inputs$estAngleMean,newformula,stationary,nlmPar,fit,nbAnimals)$mod,error=function(e) e),warning=h)
         endTime <- proc.time()-startTime
         #curmod<-out$mod
         #mle<-out$mle
       } else {
 
         # check additional parameters for nlm
+        print.level <- ifelse(is.null(nlmPar$print.level),0,nlmPar$print.level)
         gradtol <- ifelse(is.null(nlmPar$gradtol),1e-6,nlmPar$gradtol)
-        typsize = rep(1, length(wpar))
+        typsize <- rep(1, length(wpar))
         defStepmax <- max(1000 * sqrt(sum((wpar/typsize)^2)),1000)
         stepmax <- ifelse(is.null(nlmPar$stepmax),defStepmax,nlmPar$stepmax)
         steptol <- ifelse(is.null(nlmPar$steptol),1e-6,nlmPar$steptol)
@@ -758,20 +887,29 @@ fitHMM <- function(data,nbStates,dist,
         startTime <- proc.time()
   
         # call to optimizer nlm
-        withCallingHandlers(curmod <- tryCatch(nlm(nLogLike,wpar,nbStates,newformula,p$bounds,p$parSize,data,dist,covs,
-                                               inputs$estAngleMean,inputs$circularAngleMean,zeroInflation,oneInflation,
+        if(optMethod=="nlm"){
+          withCallingHandlers(curmod <- tryCatch(nlm(nLogLike,wpar,nbStates,newformula,p$bounds,p$parSize,data,inputs$dist,covs,
+                                               inputs$estAngleMean,inputs$circularAngleMean,inputs$consensus,zeroInflation,oneInflation,
                                                stationary,DMinputs$cons,fullDM,DMind,DMinputs$workcons,p$Bndind,knownStates,unlist(fixPar),wparIndex,
-                                               nc,meanind,covsDelta,
-                                               print.level=verbose,gradtol=gradtol,
+                                               nc,meanind,covsDelta,workBounds,prior,
+                                               print.level=print.level,gradtol=gradtol,
                                                stepmax=stepmax,steptol=steptol,
-                                               iterlim=iterlim,hessian=TRUE),error=function(e) e),warning=h)
-    
+                                               iterlim=iterlim,hessian=ifelse(is.null(nlmPar$hessian),TRUE,nlmPar$hessian)),error=function(e) e),warning=h)
+        } else {
+          withCallingHandlers(curmod <- tryCatch(optim(wpar,nLogLike,gr=NULL,nbStates,newformula,p$bounds,p$parSize,data,inputs$dist,covs,
+                                                     inputs$estAngleMean,inputs$circularAngleMean,inputs$consensus,zeroInflation,oneInflation,
+                                                     stationary,DMinputs$cons,fullDM,DMind,DMinputs$workcons,p$Bndind,knownStates,unlist(fixPar),wparIndex,
+                                                     nc,meanind,covsDelta,workBounds,prior,
+                                                     method=optMethod,control=control,hessian=hessian),error=function(e) e),warning=h)
+        }
         endTime <- proc.time()-startTime
       }
       
       if(fitCount==0){
         if(inherits(curmod,"error")) stop(curmod)
         else {
+          names(curmod)[which(names(curmod)=="par")] <- "estimate"
+          names(curmod)[which(names(curmod)=="value")] <- "minimum"
           curmod$elapsedTime <- endTime[3]
           mod <- curmod
           if(retryFits>=1) cat("Attempting to improve fit using random perturbation. Press 'esc' to force exit from 'fitHMM'\n")
@@ -781,25 +919,27 @@ fitHMM <- function(data,nbStates,dist,
       if((fitCount+1)<=retryFits){
         cat("\r    Attempt ",fitCount+1," of ",retryFits," -- current log-likelihood value: ",-mod$minimum,"         ",sep="")
         if(!inherits(curmod,"error")){
+          names(curmod)[which(names(curmod)=="par")] <- "estimate"
+          names(curmod)[which(names(curmod)=="value")] <- "minimum"
           curmod$elapsedTime <- endTime[3]
           if(curmod$minimum < mod$minimum) mod <- curmod
         }
-        parmInd <- length(wpar)-(nbCovs+1)*nbStates*(nbStates-1)-ncol(covsDelta)*(nbStates-1)*(!stationary)
-        wpar[1:parmInd] <- mod$estimate[1:parmInd]+rnorm(parmInd)
+        wpar[1:parmInd] <- mod$estimate[1:parmInd]+rnorm(parmInd,0,retrySD[1:parmInd])
         if(nbStates>1)
-          wpar[parmInd+1:((nbCovs+1)*nbStates*(nbStates-1)+ncol(covsDelta)*(nbStates-1)*(!stationary))] <- mod$estimate[parmInd+1:((nbCovs+1)*nbStates*(nbStates-1)+ncol(covsDelta)*(nbStates-1)*(!stationary))]+rnorm((nbCovs+1)*nbStates*(nbStates-1)+ncol(covsDelta)*(nbStates-1)*(!stationary),0,10)
+          wpar[parmInd+1:((nbCovs+1)*nbStates*(nbStates-1)+ncol(covsDelta)*(nbStates-1)*(!stationary))] <- mod$estimate[parmInd+1:((nbCovs+1)*nbStates*(nbStates-1)+ncol(covsDelta)*(nbStates-1)*(!stationary))]+rnorm((nbCovs+1)*nbStates*(nbStates-1)+ncol(covsDelta)*(nbStates-1)*(!stationary),0,retrySD[parmInd+1:((nbCovs+1)*nbStates*(nbStates-1)+ncol(covsDelta)*(nbStates-1)*(!stationary))])
         if(length(wparIndex)) wpar[wparIndex] <- unlist(fixPar)[wparIndex]
       }
       fitCount<-fitCount+1
     }
     
     # convert the parameters back to their natural scale
+    if(length(wparIndex)) mod$estimate[wparIndex] <- unlist(fixPar)[wparIndex]
     wpar <- mod$estimate
-    mle <- w2n(wpar,p$bounds,p$parSize,nbStates,nbCovs,inputs$estAngleMean,inputs$circularAngleMean,stationary,DMinputs$cons,fullDM,DMind,DMinputs$workcons,nrow(data),dist,p$Bndind,nc,meanind,covsDelta)
+    mle <- w2n(wpar,p$bounds,p$parSize,nbStates,nbCovs,inputs$estAngleMean,inputs$circularAngleMean,inputs$consensus,stationary,DMinputs$cons,fullDM,DMind,DMinputs$workcons,nrow(data),inputs$dist,p$Bndind,nc,meanind,covsDelta,workBounds)
   }
   else {
     mod <- NA
-    mle <- w2n(wpar,p$bounds,p$parSize,nbStates,nbCovs,inputs$estAngleMean,inputs$circularAngleMean,stationary,DMinputs$cons,fullDM,DMind,DMinputs$workcons,nrow(data),dist,p$Bndind,nc,meanind,covsDelta)
+    mle <- w2n(wpar,p$bounds,p$parSize,nbStates,nbCovs,inputs$estAngleMean,inputs$circularAngleMean,inputs$consensus,stationary,DMinputs$cons,fullDM,DMind,DMinputs$workcons,nrow(data),inputs$dist,p$Bndind,nc,meanind,covsDelta,workBounds)
   }
 
   ####################
@@ -811,8 +951,6 @@ fitHMM <- function(data,nbStates,dist,
   }
   
   # name columns and rows of MLEs
-  parindex <- c(0,cumsum(unlist(lapply(fullDM,ncol)))[-length(fullDM)])
-  names(parindex) <- distnames
   for(i in distnames){
     if(dist[[i]] %in% angledists)
       if(!inputs$estAngleMean[[i]]){
@@ -823,9 +961,11 @@ fitHMM <- function(data,nbStates,dist,
       rownames(mle[[i]]) <- p$parNames[[i]]
       colnames(mle[[i]]) <- stateNames
     } else {
-      mle[[i]]<-matrix(wpar[parindex[[i]]+1:ncol(fullDM[[i]])],1)
+      mle[[i]]<-matrix(wpar[parindex[[i]]+1:parCount[[i]]],1)
       rownames(mle[[i]])<-"[1,]"
-      colnames(mle[[i]])<-colnames(fullDM[[i]])
+      if(inputs$circularAngleMean[[i]]){
+        colnames(mle[[i]]) <- unique(gsub("cos","",gsub("sin","",colnames(fullDM[[i]]))))
+      } else colnames(mle[[i]])<-colnames(fullDM[[i]])
       #if(is.null(names(mle[[i]]))) warning("No names for the regression coeffs were provided in DM$",i)
     }
   }
@@ -873,9 +1013,9 @@ fitHMM <- function(data,nbStates,dist,
 
   # conditions of the fit
   conditions <- list(dist=dist,zeroInflation=zeroInflation,oneInflation=oneInflation,
-                     estAngleMean=inputs$estAngleMean,circularAngleMean=inputs$circularAngleMean,stationary=stationary,formula=formula,cons=DMinputs$cons,userBounds=userBounds,bounds=p$bounds,Bndind=p$Bndind,DM=DM,fullDM=fullDM,DMind=DMind,workcons=DMinputs$workcons,fixPar=ofixPar,wparIndex=wparIndex,formulaDelta=formulaDelta)
+                     estAngleMean=inputs$estAngleMean,circularAngleMean=inputs$circularAngleMean,stationary=stationary,formula=formula,cons=DMinputs$cons,userBounds=userBounds,workBounds=workBounds,bounds=p$bounds,Bndind=p$Bndind,DM=DM,fullDM=fullDM,DMind=DMind,workcons=DMinputs$workcons,fixPar=ofixPar,wparIndex=wparIndex,formulaDelta=formulaDelta)
 
-  mh <- list(data=data,mle=mle,mod=mod,conditions=conditions,rawCovs=rawCovs,stateNames=stateNames,knownStates=knownStates,covsDelta=covsDelta)
+  mh <- list(data=data,mle=mle,mod=mod,conditions=conditions,rawCovs=rawCovs,stateNames=stateNames,knownStates=knownStates,covsDelta=covsDelta,prior=prior)
   
   #compute SEs and CIs on natural and working scale
   CIreal<-tryCatch(CIreal(momentuHMM(mh)),error=function(e) e)
@@ -883,9 +1023,9 @@ fitHMM <- function(data,nbStates,dist,
   CIbeta<-tryCatch(CIbeta(momentuHMM(mh)),error=function(e) e)
   if(inherits(CIbeta,"error") & fit==TRUE) warning("Failed to compute SEs confidence intervals on the working scale -- ",CIbeta)
   
-  mh <- list(data=data,mle=mle,CIreal=CIreal,CIbeta=CIbeta,mod=mod,conditions=conditions,rawCovs=rawCovs,stateNames=stateNames,knownStates=knownStates,covsDelta=covsDelta)
+  mh <- list(data=data,mle=mle,CIreal=CIreal,CIbeta=CIbeta,mod=mod,conditions=conditions,rawCovs=rawCovs,stateNames=stateNames,knownStates=knownStates,covsDelta=covsDelta,prior=prior)
   
-  if(fit) message("DONE")
+  if(fit) message(ifelse(retryFits>=1,"\n",""),"DONE")
   
   return(momentuHMM(mh))
 }

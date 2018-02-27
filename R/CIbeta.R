@@ -88,7 +88,8 @@ CIbeta <- function(m,alpha=0.95)
 
 
   # inverse of Hessian
-  Sigma <- ginv(m$mod$hessian)
+  if(!is.null(m$mod$hessian)) Sigma <- ginv(m$mod$hessian)
+  else Sigma <- NULL
 
   p <- parDef(dist,nbStates,m$conditions$estAngleMean,m$conditions$zeroInflation,m$conditions$oneInflation,m$conditions$DM,m$conditions$userBounds)
   bounds <- p$bounds
@@ -100,7 +101,28 @@ CIbeta <- function(m,alpha=0.95)
   #  }
   #}
   
-  parindex <- c(0,cumsum(unlist(lapply(fullDM,ncol)))[-length(fullDM)])
+  nc <- meanind <- vector('list',length(distnames))
+  names(nc) <- names(meanind) <- distnames
+  for(i in distnames){
+    nc[[i]] <- apply(fullDM[[i]],1:2,function(x) !all(unlist(x)==0))
+    if(m$conditions$circularAngleMean[[i]]) {
+      meanind[[i]] <- which((apply(fullDM[[i]][1:nbStates,,drop=FALSE],1,function(x) !all(unlist(x)==0))))
+      # deal with angular covariates that are exactly zero
+      if(length(meanind[[i]])){
+        angInd <- which(is.na(match(gsub("cos","",gsub("sin","",colnames(nc[[i]]))),colnames(nc[[i]]),nomatch=NA)))
+        sinInd <- colnames(nc[[i]])[which(grepl("sin",colnames(nc[[i]])[angInd]))]
+        nc[[i]][meanind[[i]],sinInd]<-ifelse(nc[[i]][meanind[[i]],sinInd],nc[[i]][meanind[[i]],sinInd],nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)])
+        nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)]<-ifelse(nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)],nc[[i]][meanind[[i]],gsub("sin","cos",sinInd)],nc[[i]][meanind[[i]],sinInd])
+      }
+    }
+  }
+  
+  tmPar <- lapply(m$mle[distnames],function(x) c(t(x)))
+  parCount<- lapply(fullDM,ncol)
+  for(i in distnames[unlist(m$conditions$circularAngleMean)]){
+    parCount[[i]] <- length(unique(gsub("cos","",gsub("sin","",colnames(fullDM[[i]])))))
+  }
+  parindex <- c(0,cumsum(unlist(parCount))[-length(fullDM)])
   names(parindex) <- distnames
   
   # define appropriate quantile
@@ -110,87 +132,74 @@ CIbeta <- function(m,alpha=0.95)
   
   Par <- list()
   for(i in distnames){
-    est <- wpar[parindex[[i]]+1:ncol(fullDM[[i]])]^m$conditions$cons[[i]]+m$conditions$workcons[[i]]
-    var <- ((m$conditions$cons[[i]]*(wpar[parindex[[i]]+1:ncol(fullDM[[i]])]^(m$conditions$cons[[i]]-1)))^2)*(diag(Sigma)[parindex[[i]]+1:ncol(fullDM[[i]])])
-    # if negative variance, replace by NA
-    var[which(var<0)] <- NA
+    est <- w2wn(wpar[parindex[[i]]+1:parCount[[i]]]^m$conditions$cons[[i]]+m$conditions$workcons[[i]],m$conditions$workBounds[[i]])
     
-    # compute lower and upper for working parameters
-    wse <- sqrt(var)
-    wlower <- est-quantSup*wse
-    wupper <- est+quantSup*wse
-    
-    Par[[i]]<-beta_parm_list(matrix(est,ncol=length(est),byrow=T),matrix(wse,ncol=length(est),byrow=T),matrix(wlower,ncol=length(est),byrow=T),matrix(wupper,ncol=length(est),byrow=T),m$conditions$fullDM[[i]])
+    pnames <- colnames(fullDM[[i]])
+    if(m$conditions$circularAngleMean[[i]]) pnames <- unique(gsub("cos","",gsub("sin","",pnames)))
+    Par[[i]] <- get_CIwb(wpar[parindex[[i]]+1:parCount[[i]]],est,parindex[[i]]+1:parCount[[i]],Sigma,alpha,m$conditions$workBounds[[i]],cnames=pnames,cons=m$conditions$cons[[i]])
 
   }
 
   # group CIs for t.p. coefficients
   if(nbStates>1){
-    est <- wpar[tail(cumsum(unlist(lapply(fullDM,ncol))),1)+1:((nbCovs+1)*nbStates*(nbStates-1))]
-    var <- diag(Sigma)[tail(cumsum(unlist(lapply(fullDM,ncol))),1)+1:((nbCovs+1)*nbStates*(nbStates-1))]
+    est <- w2wn(wpar[tail(cumsum(unlist(parCount)),1)+1:((nbCovs+1)*nbStates*(nbStates-1))],m$conditions$workBounds$beta)
     
-    # if negative variance, replace by NA
-    var[which(var<0)] <- NA
-    
-    wse <- sqrt(var)
-    wlower <- est-quantSup*wse
-    wupper <- est+quantSup*wse
-    Par$beta <- list(est=matrix(est,nrow=1+nbCovs),se=matrix(wse,nrow=1+nbCovs),lower=matrix(wlower,nrow=1+nbCovs),upper=matrix(wupper,nrow=1+nbCovs))
-  }
-
-  if(!is.null(m$mle$beta)) {
-    rownames(Par$beta$est) <- rownames(m$mle$beta)
-    rownames(Par$beta$se) <- rownames(m$mle$beta)
-    rownames(Par$beta$lower) <- rownames(m$mle$beta)
-    rownames(Par$beta$upper) <- rownames(m$mle$beta)
-    colnames(Par$beta$est) <- colnames(m$mle$beta)
-    colnames(Par$beta$se) <- colnames(m$mle$beta)
-    colnames(Par$beta$lower) <- colnames(m$mle$beta)
-    colnames(Par$beta$upper) <- colnames(m$mle$beta)
+    Par$beta <- get_CIwb(wpar[tail(cumsum(unlist(parCount)),1)+1:((nbCovs+1)*nbStates*(nbStates-1))],est,tail(cumsum(unlist(parCount)),1)+1:((nbCovs+1)*nbStates*(nbStates-1)),Sigma,alpha,m$conditions$workBounds$beta,rnames=rownames(m$mle$beta),cnames=colnames(m$mle$beta),cons=rep(1,length(est)))
   }
   
   # group CIs for initial distribution
   if(nbStates>1 & !m$conditions$stationary){
     nbCovsDelta <- ncol(m$covsDelta)-1
     foo <- length(wpar)-(nbCovsDelta+1)*(nbStates-1)+1
-    est <- wpar[foo:length(wpar)]
-    var <- diag(Sigma)[foo:length(wpar)]
     
-    # if negative variance, replace by NA
-    var[which(var<0)] <- NA
+    est <- w2wn(wpar[foo:length(wpar)],m$conditions$workBounds$delta)
     
-    wse <- sqrt(var)
-    wlower <- est-quantSup*wse
-    wupper <- est+quantSup*wse
-    Par$delta <- list(est=matrix(est,nrow=1+nbCovsDelta,ncol=nbStates-1),se=matrix(wse,nrow=1+nbCovsDelta,ncol=nbStates-1),lower=matrix(wlower,nrow=1+nbCovsDelta,ncol=nbStates-1),upper=matrix(wupper,nrow=1+nbCovsDelta,ncol=nbStates-1))
-    rownames(Par$delta$est) <- colnames(m$covsDelta)
-    rownames(Par$delta$se) <- colnames(m$covsDelta)
-    rownames(Par$delta$lower) <- colnames(m$covsDelta)
-    rownames(Par$delta$upper) <- colnames(m$covsDelta)  
-    colnames(Par$delta$est) <- m$stateNames[-1]
-    colnames(Par$delta$se) <- m$stateNames[-1]
-    colnames(Par$delta$lower) <- m$stateNames[-1]
-    colnames(Par$delta$upper) <- m$stateNames[-1]  
-  } #else if(nbStates==1) {
-  #  Par$delta <- list(est=matrix(0,1+nbCovsDelta,ncol=nbStates),se=matrix(NA,1+nbCovsDelta,ncol=nbStates),lower=matrix(NA,1+nbCovsDelta,ncol=nbStates),upper=matrix(NA,1+nbCovsDelta,ncol=nbStates))
-  #  rownames(Par$delta$est) <- colnames(m$covsDelta)
-  #  rownames(Par$delta$se) <- colnames(m$covsDelta)
-  #  rownames(Par$delta$lower) <- colnames(m$covsDelta)
-  #  rownames(Par$delta$upper) <- colnames(m$covsDelta)  
-  #  colnames(Par$delta$est) <- m$stateNames
-  #  colnames(Par$delta$se) <- m$stateNames
-  #  colnames(Par$delta$lower) <- m$stateNames
-  #  colnames(Par$delta$upper) <- m$stateNames
-  #}
+    Par$delta <- get_CIwb(wpar[foo:length(wpar)],est,foo:length(wpar),Sigma,alpha,m$conditions$workBounds$delta,rnames=colnames(m$covsDelta),cnames=m$stateNames[-1],cons=rep(1,length(est)))
+
+  }
   return(Par)
 }
 
-beta_parm_list<-function(est,se,lower,upper,m){
+get_gradwb<-function(wpar,workBounds,cons){
+  ind1<-which(is.finite(workBounds[,1]) & is.infinite(workBounds[,2]))
+  ind2<-which(is.finite(workBounds[,1]) & is.finite(workBounds[,2]))
+  ind3<-which(is.infinite(workBounds[,1]) & is.finite(workBounds[,2]))
+  
+  dN <- diag(cons*(wpar^(cons-1)))
+  dN[cbind(ind1,ind1)] <- exp(wpar[ind1])
+  dN[cbind(ind2,ind2)] <- (workBounds[ind2,2]-workBounds[ind2,1])*exp(wpar[ind2])/(1+exp(wpar[ind2]))^2 
+  dN[cbind(ind3,ind3)] <- exp(-wpar[ind3])
+  dN
+}
+
+get_CIwb<-function(wpar,Par,ind,Sigma,alpha,workBounds,rnames="[1,]",cnames,cons){
+  
+  npar <- length(wpar)
+  bRow <- (rnames=="[1,]")
+  lower<-upper<-se<-rep(NA,npar)
+  
+  if(!is.null(Sigma)){
+    dN <- get_gradwb(wpar,workBounds,cons)
+    
+    se <- suppressWarnings(sqrt(diag(dN%*%Sigma[ind,ind]%*%t(dN))))
+    lower <- Par - qnorm(1-(1-alpha)/2) * se
+    upper <- Par + qnorm(1-(1-alpha)/2) * se
+  }  
+  
+  est<-matrix(Par,ncol=length(cnames),byrow=bRow)
+  l<-matrix(lower,ncol=length(cnames),byrow=bRow)
+  u<-matrix(upper,ncol=length(cnames),byrow=bRow)  
+  s<-matrix(se,ncol=length(cnames),byrow=bRow)
+  
+  beta_parm_list(est,s,l,u,rnames,cnames)
+}
+
+beta_parm_list<-function(est,se,lower,upper,rnames,cnames){
   Par <- list(est=est,se=se,lower=lower,upper=upper)
-  rownames(Par$est) <- rownames(Par$se) <- rownames(Par$lower) <- rownames(Par$upper) <- "[1,]"
-  colnames(Par$est) <- colnames(m)
-  colnames(Par$se) <- colnames(m)
-  colnames(Par$lower) <- colnames(m)
-  colnames(Par$upper) <- colnames(m)
+  rownames(Par$est) <- rownames(Par$se) <- rownames(Par$lower) <- rownames(Par$upper) <- rnames
+  colnames(Par$est) <- cnames
+  colnames(Par$se) <- cnames
+  colnames(Par$lower) <- cnames
+  colnames(Par$upper) <- cnames
   Par
 }

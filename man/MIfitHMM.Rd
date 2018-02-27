@@ -4,16 +4,18 @@
 \alias{MIfitHMM}
 \title{Fit HMMs to multiple imputation data}
 \usage{
-MIfitHMM(miData, nSims, ncores, poolEstimates = TRUE, alpha = 0.95,
+MIfitHMM(miData, nSims, ncores = 1, poolEstimates = TRUE, alpha = 0.95,
   nbStates, dist, Par0, beta0 = NULL, delta0 = NULL, estAngleMean = NULL,
   circularAngleMean = NULL, formula = ~1, formulaDelta = ~1,
-  stationary = FALSE, verbose = 0, nlmPar = NULL, fit = TRUE,
-  DM = NULL, cons = NULL, userBounds = NULL, workcons = NULL,
-  stateNames = NULL, knownStates = NULL, fixPar = NULL, retryFits = 0,
-  covNames = NULL, spatialCovs = NULL, centers = NULL, angleCovs = NULL,
-  method = "IS", parIS = 1000, dfSim = Inf, grid.eps = 1, crit = 2.5,
-  scaleSim = 1, force.quad = TRUE, fullPost = TRUE, dfPostIS = Inf,
-  scalePostIS = 1, thetaSamp = NULL)
+  stationary = FALSE, verbose = NULL, nlmPar = NULL, fit = TRUE,
+  useInitial = FALSE, DM = NULL, cons = NULL, userBounds = NULL,
+  workBounds = NULL, workcons = NULL, stateNames = NULL,
+  knownStates = NULL, fixPar = NULL, retryFits = 0, retrySD = NULL,
+  optMethod = "nlm", control = list(), prior = NULL, covNames = NULL,
+  spatialCovs = NULL, centers = NULL, centroids = NULL,
+  angleCovs = NULL, method = "IS", parIS = 1000, dfSim = Inf,
+  grid.eps = 1, crit = 2.5, scaleSim = 1, force.quad = TRUE,
+  fullPost = TRUE, dfPostIS = Inf, scalePostIS = 1, thetaSamp = NULL)
 }
 \arguments{
 \item{miData}{A \code{\link{crwData}} object, a \code{\link{crwSim}} object, or a list of \code{\link{momentuHMMData}} objects.}
@@ -21,7 +23,7 @@ MIfitHMM(miData, nSims, ncores, poolEstimates = TRUE, alpha = 0.95,
 \item{nSims}{Number of imputations in which to fit the HMM using \code{\link{fitHMM}}. If \code{miData} is a list of \code{momentuHMMData} 
 objects, \code{nSims} cannot exceed the length of \code{miData}.}
 
-\item{ncores}{Number of cores to use for parallel processing.}
+\item{ncores}{Number of cores to use for parallel processing. Default: 1 (no parallel processing).}
 
 \item{poolEstimates}{Logical indicating whether or not to calculate pooled parameter estimates across the \code{nSims} imputations using \code{\link{MIpool}}. Default: \code{TRUE}.}
 
@@ -33,7 +35,7 @@ objects, \code{nSims} cannot exceed the length of \code{miData}.}
 
 \item{Par0}{A named list containing vectors of initial state-dependent probability distribution parameters for 
 each data stream specified in \code{dist}. See \code{\link{fitHMM}}.  \code{Par0} may also be a list of length \code{nSims}, where each element is a named list containing vectors
-of initial state-dependent probability distribution parameters for each imputation.}
+of initial state-dependent probability distribution parameters for each imputation. Note that if \code{useInitial=TRUE} then \code{Par0} is ignored after the first imputation.}
 
 \item{beta0}{Initial matrix of regression coefficients for the transition probabilities. See \code{\link{fitHMM}}. \code{beta0} may also be a list of length \code{nSims}, where each element 
 is an initial matrix of regression coefficients for the transition probabilities for each imputation.}
@@ -54,27 +56,33 @@ regression on the mean of circular distributions ('vm' and 'wrpcauchy') for turn
 \item{stationary}{\code{FALSE} if there are covariates. If \code{TRUE}, the initial distribution is considered
 equal to the stationary distribution. See \code{\link{fitHMM}}.}
 
-\item{verbose}{Determines the print level of the \code{fitHMM} optimizer. The default value of 0 means that no
+\item{verbose}{Deprecated: please use \code{print.level} in \code{nlmPar} argument. Determines the print level of the \code{nlm} optimizer. The default value of 0 means that no
 printing occurs, a value of 1 means that the first and last iterations of the optimization are
-detailed, and a value of 2 means that each iteration of the optimization is detailed.}
+detailed, and a value of 2 means that each iteration of the optimization is detailed. Ignored unless \code{optMethod="nlm"}.}
 
-\item{nlmPar}{List of parameters to pass to the \code{fitHMM} optimization function \code{nlm} (which should be either
-'\code{gradtol}', '\code{stepmax}', '\code{steptol}', or '\code{iterlim}' -- see \code{nlm}'s documentation
-for more detail)}
+\item{nlmPar}{List of parameters to pass to the optimization function \code{\link[stats]{nlm}} (which should be either
+\code{print.level}, \code{gradtol}, \code{stepmax}, \code{steptol}, \code{iterlim}, or \code{hessian} -- see \code{nlm}'s documentation
+for more detail). Ignored unless \code{optMethod="nlm"}.}
 
 \item{fit}{\code{TRUE} if the HMM should be fitted to the data, \code{FALSE} otherwise. See \code{\link{fitHMM}}. If \code{fit=FALSE} and \code{miData} is a \code{\link{crwData}}
 object, then \code{MIfitHMM} returns a list containing a \code{\link{momentuHMMData}} object (if \code{nSims=1}) or, if \code{nSims>1}, a \code{\link{crwSim}} object.}
 
+\item{useInitial}{Logical indicating whether or not to use parameter estimates for the first model fit as initial values for all subsequent model fits.
+If \code{ncores>1} then the first model is fit on a single core and then used as the initial values for all subsequent model fits on each core 
+(in this case, the progress of the initial model fit can be followed using the \code{verbose} argument). Default: FALSE.}
+
 \item{DM}{An optional named list indicating the design matrices to be used for the probability distribution parameters of each data 
 stream. See \code{\link{fitHMM}}.}
 
-\item{cons}{An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
+\item{cons}{Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
 for each data stream. See \code{\link{fitHMM}}.}
 
 \item{userBounds}{An optional named list of 2-column matrices specifying bounds on the natural (i.e, real) scale of the probability 
 distribution parameters for each data stream. See \code{\link{fitHMM}}.}
 
-\item{workcons}{An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
+\item{workBounds}{An optional named list of 2-column matrices specifying bounds on the working scale of the probability distribution, transition probability, and initial distribution parameters. See \code{\link{fitHMM}}.}
+
+\item{workcons}{Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
 each data stream. See \code{\link{fitHMM}}.}
 
 \item{stateNames}{Optional character vector of length nbStates indicating state names.}
@@ -88,6 +96,14 @@ be a list of vectors containing the known values for the state process for each 
 \item{retryFits}{Non-negative integer indicating the number of times to attempt to iteratively fit the model using random perturbations of the current parameter estimates as the 
 initial values for likelihood optimization.  See \code{\link{fitHMM}}.}
 
+\item{retrySD}{An optional list of scalars or vectors indicating the standard deviation to use for normal perturbations of each working scale parameter when \code{retryFits>0}. See \code{\link{fitHMM}}.}
+
+\item{optMethod}{The optimization method to be used.  Can be ``nlm'' (the default; see \code{\link[stats]{nlm}}), ``Nelder-Mead'' (see \code{\link[stats]{optim}}), or ``SANN'' (see \code{\link[stats]{optim}}).}
+
+\item{control}{A list of control parameters to be passed to \code{\link[stats]{optim}} (ignored unless \code{optMethod="Nelder-Mead"} or \code{optMethod="SANN"}).}
+
+\item{prior}{A function that returns the log-density of the working scale parameter prior distribution(s).  See \code{\link{fitHMM}}.}
+
 \item{covNames}{Names of any covariates in \code{miData$crwPredict} (if \code{miData} is a \code{\link{crwData}} object; otherwise 
 \code{covNames} is ignored). See \code{\link{prepData}}.}
 
@@ -97,6 +113,9 @@ a \code{\link{crwData}} object; otherwise \code{spatialCovs} is ignored). See \c
 \item{centers}{2-column matrix providing the x-coordinates (column 1) and y-coordinates (column 2) for any activity centers (e.g., potential 
 centers of attraction or repulsion) from which distance and angle covariates will be calculated based on realizations of the position process. 
 See \code{\link{prepData}}. Ignored unless \code{miData} is a \code{\link{crwData}} object.}
+
+\item{centroids}{List where each element is a data frame containing the x-coordinates ('x'), y-coordinates ('y'), and times (with user-specified name, e.g., `time') for centroids (i.e., dynamic activity centers where the coordinates can change over time)
+from which distance and angle covariates will be calculated based on the location data. See \code{\link{prepData}}. Ignored unless \code{miData} is a \code{\link{crwData}} object.}
 
 \item{angleCovs}{Character vector indicating the names of any circular-circular regression angular covariates in \code{miData$crwPredict} that need conversion from standard direction (in radians relative to the x-axis) to turning angle (relative to previous movement direction) 
 See \code{\link{prepData}}. Ignored unless \code{miData} is a \code{\link{crwData}} object.}
@@ -170,7 +189,7 @@ err.model <- miExample$err.model # error ellipse model
 
 # create crwData object by fitting crwMLE models to obsData and predict locations 
 # at default intervals for both individuals
-crwOut <- crawlWrap(obsData=obsData,ncores=1,
+crwOut <- crawlWrap(obsData=obsData,
          theta=c(4,0),fixPar=c(1,1,NA,NA),
          initial.state=inits,
          err.model=err.model)
@@ -202,7 +221,7 @@ print(bestFit)
 bPar0 <- getPar(bestFit)
 
 # Fit nSims=5 imputations of the position process
-miFits<-MIfitHMM(miData=crwOut,nSims=5,ncores=1,
+miFits<-MIfitHMM(miData=crwOut,nSims=5,
                   nbStates=nbStates,dist=list(step=stepDist,angle=angleDist),
                   Par0=bPar0$Par,beta0=bPar0$beta,delta0=bPar0$delta,
                   formula=formula,estAngleMean=list(angle=TRUE),

@@ -40,12 +40,12 @@
 #' err.model <- miExample$err.model
 #' 
 #' # Fit crawl to obsData
-#' crwOut <- crawlWrap(obsData,ncores=1,theta=c(4,0),fixPar=c(1,1,NA,NA),
+#' crwOut <- crawlWrap(obsData,theta=c(4,0),fixPar=c(1,1,NA,NA),
 #'                     initial.state=inits,err.model=err.model)
 #'                     
 #' # Fit four imputations
 #' bPar <- miExample$bPar
-#' HMMfits <- MIfitHMM(crwOut,nSims=4,ncores=1,poolEstimates=FALSE,
+#' HMMfits <- MIfitHMM(crwOut,nSims=4,poolEstimates=FALSE,
 #'                    nbStates=2,dist=list(step="gamma",angle="vm"),
 #'                    Par0=bPar$Par,beta0=bPar$beta,delta0=bPar$delta,
 #'                    formula=~cov1+cos(cov2),
@@ -53,7 +53,7 @@
 #'                    covNames=c("cov1","cov2"))
 #'                    
 #' # Pool estimates
-#' miSum <- MIpool(HMMfits,ncores=1)
+#' miSum <- MIpool(HMMfits)
 #' plot(miSum)
 #' }
 #' @export
@@ -62,6 +62,8 @@ plot.miSum <- function(x,animals=NULL,covs=NULL,ask=TRUE,breaks="Sturges",hist.y
                         sepStates=FALSE,col=NULL,cumul=TRUE,plotTracks=TRUE,plotCI=FALSE,alpha=0.95,plotEllipse=TRUE,...)
 {
   m <- x # the name "x" is for compatibility with the generic method
+  m <- delta_bc(m)
+  
   m$mle <- lapply(x$Par$real,function(x) x$est)
   m$mle$beta <- x$Par$beta$beta$est
   m$mle$delta <- x$Par$real$delta$est
@@ -70,10 +72,14 @@ plot.miSum <- function(x,animals=NULL,covs=NULL,ask=TRUE,breaks="Sturges",hist.y
   for(i in names(m$conditions$dist)){
     m$conditions$cons[[i]]<-rep(1,length(m$conditions$cons[[i]]))
     m$conditions$workcons[[i]]<-rep(0,length(m$conditions$workcons[[i]]))
+    m$conditions$workBounds[[i]]<-matrix(c(-Inf,Inf),nrow(m$conditions$workBounds[[i]]),2,byrow=TRUE)
   }
+  if(!is.null(m$mle$beta)) m$conditions$workBounds$beta<-matrix(c(-Inf,Inf),length(m$mle$beta),2,byrow=TRUE)
+  if(!is.null(m$Par$beta$delta$est)) m$conditions$workBoundsdelta<-matrix(c(-Inf,Inf),length(m$Par$beta$delta$est),2,byrow=TRUE)
+  
   m$plotEllipse <- plotEllipse
   
-  class(m) <- append("momentuHMM",class(m))
+  m <- momentuHMM(m)
   
   plot.momentuHMM(m,animals,covs,ask,breaks,hist.ylim,sepAnimals,
                   sepStates,col,cumul,plotTracks,plotCI,alpha,...)

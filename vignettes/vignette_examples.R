@@ -1,6 +1,8 @@
 library(sp)
 library(doParallel)
 
+example_wd <- ("~/Documents/Dropbox/current projects/moveHMM extension/momentuHMM/vignette examples/")
+
 append.RData <- function(x, file) {
   old.objects <- load(file)
   save(list = c(old.objects, deparse(substitute(x))), file = file)
@@ -206,6 +208,8 @@ degAxis(1)
 degAxis(2)
 map('worldHires', add=TRUE, fill=TRUE, col='white')
 
+pal <- c("#78c679","#F0E442","#E31A1C","#88419d")
+
 for(id in unique(data$ID)) {
   ind <- which(data$ID==id)
   segments(x0 = data$x[ind[-length(ind)]], y0 = data$y[ind[-length(ind)]], x1 = data$x[ind[-1]], y1 = data$y[ind[-1]], 
@@ -293,7 +297,7 @@ pdf(file=paste0(getwd(),"/plot_harbourSealResults%03d.pdf"),onefile=FALSE)
 plot(miSum.ind,plotCI=TRUE,ask=FALSE)
 dev.off()
 
-for(plt in seq(1,38)[-c(21)])
+for(plt in seq(1,37)[-c(20)])
   unlink(paste0("plot_harbourSealResults0",ifelse(plt>9,"","0"),plt,".pdf"))
 
 rm(list=ls()[-which(ls()=="example_wd")])

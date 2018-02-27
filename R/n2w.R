@@ -40,9 +40,11 @@
 #' 
 #' #natural parameter
 #' p <-   momentuHMM:::w2n(wpar,bounds,parSize,nbStates,nbCovs,m$conditions$estAngleMean,
-#' m$conditions$circularAngleMean,m$conditions$stationary,m$conditions$cons,m$conditions$fullDM,
+#' m$conditions$circularAngleMean,lapply(m$conditions$dist,function(x) x=="vmConsensus"),
+#' m$conditions$stationary,m$conditions$cons,m$conditions$fullDM,
 #' m$conditions$DMind,m$conditions$workcons,1,m$conditions$dist,m$conditions$Bndind,
-#' matrix(1,nrow=length(unique(m$data$ID)),ncol=1),covsDelta=m$covsDelta)
+#' matrix(1,nrow=length(unique(m$data$ID)),ncol=1),covsDelta=m$covsDelta,
+#' workBounds=m$conditions$workBounds)
 #' }
 #'
 #' @importFrom boot logit
@@ -90,6 +92,20 @@ n2w <- function(par,bounds,beta,delta=NULL,nbStates,estAngleMean,DM,cons,workcon
   return(c(wpar,wbeta,wdelta))
 }
 
+nw2w <-function(wpar,workBounds){
+  
+  ind1<-which(is.finite(workBounds[,1]) & is.infinite(workBounds[,2]))
+  ind2<-which(is.finite(workBounds[,1]) & is.finite(workBounds[,2]))
+  ind3<-which(is.infinite(workBounds[,1]) & is.finite(workBounds[,2]))
+  
+  wpar[ind1] <- log(wpar[ind1]-workBounds[ind1,1])
+  wpar[ind2] <- boot::logit((wpar[ind2]-workBounds[ind2,1])/(workBounds[ind2,2]-workBounds[ind2,1]))
+  wpar[ind3] <- -log(-wpar[ind3] + workBounds[ind3,2])
+  
+  wpar
+  
+}
+
 n2wDM<-function(bounds,DM,par,cons,workcons,nbStates){
   
   a<-bounds[,1]
@@ -123,7 +139,7 @@ n2wDM<-function(bounds,DM,par,cons,workcons,nbStates){
   ind33<-ind3[which(is.infinite(a[ind3]) & is.finite(b[ind3]))]
   
   p[ind31]<-(log(par[ind31]-a[ind31])-workcons[ind31])^(1/cons[ind31])
-  p[ind32]<-(logit((par[ind32]-a[ind32])/(b[ind32]-a[ind32]))-workcons[ind32])^(1/cons[ind32])
+  p[ind32]<-(boot::logit((par[ind32]-a[ind32])/(b[ind32]-a[ind32]))-workcons[ind32])^(1/cons[ind32])
   p[ind33]<-(-log(-par[ind33]+b[ind33])-workcons[ind33])^(1/cons[ind33])
   
   p

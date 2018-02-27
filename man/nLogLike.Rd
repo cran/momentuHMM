@@ -5,9 +5,9 @@
 \title{Negative log-likelihood function}
 \usage{
 nLogLike(wpar, nbStates, formula, bounds, parSize, data, dist, covs,
-  estAngleMean, circularAngleMean, zeroInflation, oneInflation,
+  estAngleMean, circularAngleMean, consensus, zeroInflation, oneInflation,
   stationary = FALSE, cons, fullDM, DMind, workcons, Bndind, knownStates,
-  fixPar, wparIndex, nc, meanind, covsDelta)
+  fixPar, wparIndex, nc, meanind, covsDelta, workBounds, prior = NULL)
 }
 \arguments{
 \item{wpar}{Vector of working parameters.}
@@ -32,6 +32,8 @@ distributions ('vm' and 'wrpcauchy').}
 
 \item{circularAngleMean}{Named list indicating whether to use circular-linear (FALSE) or circular-circular (TRUE) 
 regression on the mean of circular distributions ('vm' and 'wrpcauchy') for turning angles.}
+
+\item{consensus}{Named list indicating whether to use the circular-circular regression consensus model}
 
 \item{zeroInflation}{Named list of logicals indicating whether the probability distributions of the data streams are zero-inflated.}
 
@@ -65,6 +67,10 @@ model (if any).}
 \item{meanind}{index for circular-circular regression mean angles with at least one non-zero entry in fullDM}
 
 \item{covsDelta}{data frame containing the delta model covariates (if any)}
+
+\item{workBounds}{named list of 2-column matrices specifying bounds on the working scale of the probability distribution, transition probability, and initial distribution parameters}
+
+\item{prior}{A function that returns the log-density of the working scale parameter prior distribution(s)}
 }
 \value{
 The negative log-likelihood of the parameters given the data.
@@ -90,12 +96,12 @@ wpar <- momentuHMM:::n2w(Par$Par,m$conditions$bounds,Par$beta,log(Par$delta[-1]/
         m$conditions$Bndind)
 
 l <- momentuHMM:::nLogLike(wpar,nbStates,m$conditions$formula,m$conditions$bounds,
-     inputs$p$parSize,data,m$conditions$dist,model.matrix(m$conditions$formula,data),
-                   m$conditions$estAngleMean,m$conditions$circularAngleMean,
-                   m$conditions$zeroInflation,m$conditions$oneInflation,m$conditions$stationary,
-                   m$conditions$cons,m$conditions$fullDM,m$conditions$DMind,m$conditions$workcons,
-                   m$conditions$Bndind,m$knownStates,unlist(m$conditions$fixPar),
-                   m$conditions$wparIndex,covsDelta=m$covsDelta)
+     inputs$p$parSize,data,inputs$dist,model.matrix(m$conditions$formula,data),
+     m$conditions$estAngleMean,m$conditions$circularAngleMean,inputs$consensus,
+     m$conditions$zeroInflation,m$conditions$oneInflation,m$conditions$stationary,
+     m$conditions$cons,m$conditions$fullDM,m$conditions$DMind,m$conditions$workcons,
+     m$conditions$Bndind,m$knownStates,unlist(m$conditions$fixPar),
+     m$conditions$wparIndex,covsDelta=m$covsDelta,workBounds=m$conditions$workBounds)
 }
 
 }

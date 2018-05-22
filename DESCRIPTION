@@ -2,23 +2,24 @@ Package: momentuHMM
 Type: Package
 Title: Maximum Likelihood Analysis of Animal Movement Behavior Using
         Multivariate Hidden Markov Models
-Version: 1.4.0
-Date: 2018-02-27
+Version: 1.4.1
+Date: 2018-05-21
 Depends: R (>= 2.10)
 Author: Brett McClintock, Theo Michelot
 Maintainer: Brett McClintock <brett.mcclintock@noaa.gov>
-Description: Extended tools for analyzing telemetry data using generalized hidden Markov models. These include data pre-processing and visualization, fitting HMMs to location and auxiliary biotelemetry or environmental data, biased and correlated random walk movement models, multiple imputation for incorporating location measurement error and missing data, user-specified design matrices and constraints for covariate modelling of parameters, decoding of the state process, visualization of fitted models, model checking and selection, and simulation. See McClintock and Michelot (2017) <arXiv:1710.03786>.
+Description: Extended tools for analyzing telemetry data using generalized hidden Markov models. These include data pre-processing and visualization, fitting HMMs to location and auxiliary biotelemetry or environmental data, biased and correlated random walk movement models, multiple imputation for incorporating location measurement error and missing data, user-specified design matrices and constraints for covariate modelling of parameters, decoding of the state process, visualization of fitted models, model checking and selection, and simulation. See McClintock and Michelot (2017) <doi:10.1111/2041-210X.12995>.
 License: GPL-3
 LazyData: TRUE
 Imports: Rcpp, doParallel, foreach, numDeriv, CircStats, crawl, ggmap,
         ggplot2, mitools, moveHMM, raster, argosfilter, car, mvtnorm,
         boot, sp, MASS, Brobdingnag, gstat, conicfit, nleqslv,
-        survival, qdapRegex, geosphere, LaplacesDemon, prodlim
+        survival, qdapRegex, geosphere, LaplacesDemon, prodlim, dplyr,
+        magrittr
 LinkingTo: Rcpp, RcppArmadillo
 Suggests: testthat, setRNG, knitr, splines, splines2
 RoxygenNote: 6.0.1
 NeedsCompilation: yes
 VignetteBuilder: knitr
-Packaged: 2018-02-27 16:56:06 UTC; brettmcclintock
+Packaged: 2018-05-21 23:22:13 UTC; brettmcclintock
 Repository: CRAN
-Date/Publication: 2018-02-27 17:33:15 UTC
+Date/Publication: 2018-05-22 03:22:25 UTC

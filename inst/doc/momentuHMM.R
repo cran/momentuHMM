@@ -195,12 +195,12 @@ head(rawData)
 #  plot(turtleFits, plotCI = TRUE, covs = data.frame(angle_osc = cos(0)))
 
 ## ----fit-turtle-3, echo=TRUE, eval=FALSE---------------------------------
-#  DM$angle = list(mean = ~state2(angleStrength(d, strength = w)),
+#  DM$angle = list(mean = ~state2(angleFormula(d, strength = w)),
 #                  concentration= ~1))
 
 ## ----fit-turtle-4, echo=TRUE, eval=FALSE---------------------------------
 #  dist$angle = "vmConsensus"
-#  DM$angle = list(mean = ~state2(angleStrength(d, strength = w)),
+#  DM$angle = list(mean = ~state2(angleFormula(d, strength = w)),
 #                  kappa = ~1)
 
 ## ----fit-grey-seal, echo=TRUE, eval=FALSE--------------------------------
@@ -482,11 +482,237 @@ angleworkBounds <- matrix(c(-Inf,transitcons,-Inf,
 
 ## ----fit-hs, echo=TRUE, eval=FALSE---------------------------------------
 #  DM <- list(step = stepDM, angle = angleDM, omega = omegaDM)
-#  userBounds <- list(step = stepBounds, angle = angleBounds, omega = omegaBounds)
-#  workBounds <- list(step = stepworkBounds, angle = angleworkBounds, omega = omegaworkBounds)
+#  userBounds <- list(step = stepBounds,
+#                     angle = angleBounds,
+#                     omega = omegaBounds)
+#  workBounds <- list(step = stepworkBounds,
+#                     angle = angleworkBounds,
+#                     omega = omegaworkBounds)
 #  hsFits <- MIfitHMM(crwOut, nSims = 30,
 #                     nbStates = nbStates, dist = dist, Par0 = Par0,
 #                     DM = DM, workBounds = workBounds,
 #                     userBounds = userBounds, workBounds = workBounds,
 #                     fixPar = fixPar, stateNames = stateNames)
+
+## ----prep-fulmar-1, echo=TRUE, eval=FALSE--------------------------------
+#  library(sp)
+#  
+#  # load data provided by Pirotta et al
+#  fulmarURL <- "https://datadryad.org/bitstream/handle/10255/dryad.174482/"
+#  fileName <- "Fulmar_trackingData.csv?sequence=1"
+#  raw_data <- read.csv(url(paste0(fulmarURL,fileName)),
+#                       stringsAsFactors = FALSE)
+#  
+#  raw_data$ID <- raw_data$tripID
+#  raw_data$Date <- as.POSIXct(raw_data$Date,tz="UTC",
+#                              format="%d/%m/%Y %H:%M")
+#  
+#  # project data
+#  oldProj <- CRS("+proj=longlat +datum=WGS84")
+#  newProj <- CRS("+init=epsg:27700")
+#  coordinates(raw_data) <- c("Longitude","Latitude")
+#  proj4string(raw_data) <- oldProj
+#  raw_data <- as.data.frame(spTransform(raw_data, newProj))
+#  
+#  coordinates(raw_data) <- c("Boat_Longitude","Boat_Latitude")
+#  proj4string(raw_data) <- oldProj
+#  raw_data <- as.data.frame(spTransform(raw_data, newProj))
+
+## ----prep-fulmar-2, echo=TRUE, eval=FALSE--------------------------------
+#  # use prepData to calculate colony distance covariate ('sea.angle')
+#  colony <- data.frame(x = -3.1, y = 59.12)
+#  coordinates(colony) <- c("x", "y")
+#  proj4string(colony) <- oldProj
+#  colony <- as.matrix(as.data.frame(spTransform(colony, newProj)))
+#  rownames(colony) <- "colony"
+#  colony_dist <- prepData(raw_data, coordNames = c("Longitude","Latitude"),
+#                          centers = colony)
+#  
+#  # calculate "sea" mean angle covariate
+#  sea.angle <- NULL
+#  for(id in unique(colony_dist$ID)) {
+#    idat <- subset(colony_dist,ID==id)
+#    nbSubObs <- length(which(colony_dist$ID==id))
+#    max_dist <- as.numeric(idat[which.max(idat$colony.dist),c("x","y")])
+#    max_angle <- momentuHMM:::distAngle(colony,colony,max_dist)[2]
+#    sea.angle <- c(sea.angle, rep(max_angle,nbSubObs))
+#  }
+#  raw_data$sea.angle <- sea.angle
+
+## ----prep-fulmar-3, echo=TRUE, eval=FALSE--------------------------------
+#  # calculate time since left colony covariate ('time')
+#  time <- aInd <- NULL
+#  for(id in unique(raw_data$ID)) {
+#    idInd <- which(raw_data$ID==id)
+#    aInd <- c(aInd,idInd[1])
+#    nbSubObs <- length(idInd)
+#    time <- c(time, (1:nbSubObs)/nbSubObs)
+#  }
+#  raw_data$time <- time
+
+## ----prep-fulmar-4, echo=TRUE, eval=FALSE--------------------------------
+#  # get boat data into centroids argument format
+#  boat_data <- list(boat=data.frame(Date = raw_data$Date,
+#                                    x = raw_data$Boat_Longitude,
+#                                    y = raw_data$Boat_Latitude))
+#  
+#  # format and merge all data and covariates for analysis
+#  fulmar_data <- prepData(raw_data, coordNames = c("Longitude","Latitude"),
+#                          centers = colony,
+#                          centroids = boat_data,
+#                          covNames = "time",
+#                          angleCovs = "sea.angle")
+#  
+#  # momentuHMM doesn't like data streams and covariates to have same name,
+#  # so create identical data column with different name
+#  fulmar_data$d <- fulmar_data$boat.dist
+#  
+#  # standarize boat.dist covariate
+#  fulmar_data$boat.dist <- scale(fulmar_data$boat.dist)
+
+## ----spec-fulmar-1, echo=TRUE, eval=FALSE--------------------------------
+#  nbStates <- 6
+#  
+#  stateNames <- c("seaARS", "seaTr",
+#                  "boatARS", "boatTr",
+#                  "colonyARS", "colonyTr")
+#  
+#  dist <- list(step = "weibull",
+#               angle = "wrpcauchy",
+#               d = "lnorm")
+#  
+
+## ----spec-fulmar-2, echo=TRUE, eval=FALSE--------------------------------
+#  # specify data stream probability distribution parameter constraints
+#  stepDM <- matrix(c(1,0,0,0,
+#                     0,1,0,0,
+#                     1,0,0,0,
+#                     0,1,0,0,
+#                     1,0,0,0,
+#                     0,1,0,0,
+#                     0,0,1,0,
+#                     0,0,1,1,
+#                     0,0,1,0,
+#                     0,0,1,1,
+#                     0,0,1,0,
+#                     0,0,1,1),2*nbStates,4,byrow=TRUE,
+#                   dimnames=list(c(paste0("shape_",1:nbStates),
+#                                   paste0("scale_",1:nbStates)),
+#                                 c("shape:ARS","shape:Tr",
+#                                   "scale:(Intercept)","scale:Tr")))
+#  
+#  # constrain scale parameters such that Tr > ARS
+#  stepworkBounds <- matrix(c(-Inf,Inf,
+#                             -Inf,Inf,
+#                             -Inf,Inf,
+#                             0,Inf),ncol(stepDM),2,byrow=TRUE)
+#  
+#  
+#  nbTrips <- length(unique(fulmar_data$ID))
+#  
+#  angleDM <- matrix(c("sea.angle",0,0,0,0,rep(0,2*nbTrips),
+#                      "sea.angle",0,0,0,0,rep(0,2*nbTrips),
+#                      0,"boat.angle",0,0,0,rep(0,2*nbTrips),
+#                      0,"boat.angle",0,0,0,rep(0,2*nbTrips),
+#                      0,0,"colony.angle",0,0,rep(0,2*nbTrips),
+#                      0,0,"colony.angle",0,0,rep(0,2*nbTrips),
+#                      0,0,0,1,0,paste0("ID",1:nbTrips),rep(0,nbTrips),
+#                      0,0,0,1,1,paste0("ID",1:nbTrips),paste0("ID",1:nbTrips),
+#                      0,0,0,1,0,rep(0,2*nbTrips),
+#                      0,0,0,1,1,rep(0,2*nbTrips),
+#                      0,0,0,1,0,rep(0,2*nbTrips),
+#                      0,0,0,1,1,rep(0,2*nbTrips)),2*nbStates,3+2+2*nbTrips,byrow=TRUE,
+#                    dimnames=list(c(paste0("mean_",1:nbStates),
+#                                    paste0("concentration_",1:nbStates)),
+#                                  c("mean:sea","mean:boat","mean:colony",
+#                                    "concentration:(Intercept)","concentration:Tr",
+#                                    paste0("concentration:ID",1:nbTrips,":(Intercept)"),
+#                                    paste0("concentration:ID",1:nbTrips,":Tr"))))
+#  
+#  # constrain concentration parameters such that Tr > ARS
+#  angleworkBounds <- matrix(c(-Inf,Inf,
+#                              -Inf,Inf,
+#                              -Inf,Inf,
+#                              -Inf,Inf,
+#                              0,Inf,
+#                              rep(c(-Inf,Inf),nbTrips),
+#                              rep(c(0,Inf),nbTrips)),ncol(angleDM),2,byrow=TRUE)
+#  
+#  dDM <- matrix(c(1,1,0,0,
+#                  1,1,0,0,
+#                  1,0,0,0,
+#                  1,0,0,0,
+#                  1,1,0,0,
+#                  1,1,0,0,
+#                  0,0,1,1,
+#                  0,0,1,1,
+#                  0,0,1,0,
+#                  0,0,1,0,
+#                  0,0,1,1,
+#                  0,0,1,1),2*nbStates,4,byrow=TRUE,
+#                dimnames=list(c(paste0("location_",1:nbStates),
+#                                paste0("scale_",1:nbStates)),
+#                              c("location:(Intercept)","location:noboat",
+#                                "scale:(Intercept)","scale:noboat")))
+#  
+#  # constrain location and scale parameters such that sea and colony > boat
+#  dworkBounds <- matrix(c(-Inf,Inf,
+#                          0,Inf,
+#                          -Inf,Inf,
+#                          0,Inf),ncol(dDM),2,byrow=TRUE)
+#  
+#  DM<-list(step = stepDM, angle = angleDM, d = dDM)
+#  
+#  workBounds <- list(step = stepworkBounds,
+#                     angle = angleworkBounds,
+#                     d = dworkBounds)
+
+## ----spec-fulmar-3, echo=TRUE, eval=FALSE--------------------------------
+#  # state transition formula similar to Pirotta et al
+#  formula <- ~ toState3(boat.dist) + toState4(boat.dist) +
+#               toState5(time) + toState6(time)
+#  
+#  # specify knownStates
+#  # Priotta et al assumed all animals start in state 2 ('seaTr')
+#  knownStates <- rep(NA,nrow(fulmar_data))
+#  knownStates[aInd] <- 2
+#  
+#  # fix delta_2 = 1 because assuming initial state is known for each track
+#  fixPar <- list(delta=c(100,rep(0,nbStates-2)))
+#  fixPar$delta <- exp(c(0,fixPar$delta))/sum(exp(c(0,fixPar$delta)))
+#  # Constrain model to BRW (instead of BCRW)
+#  fixPar$angle <- c(rep(1.e+7, 3), rep(NA, 2+2*nbTrips))
+
+## ----fit-fulmar-1, echo=TRUE, eval=FALSE---------------------------------
+#  prior <- function(par) {sum(dnorm(par[27+1:90],0,100,log=TRUE))}
+#  
+#  m2 <- fitHMM(fulmar_data, nbStates, dist,
+#               Par0 = Par0$Par, beta0 = Par0$beta0,
+#               formula = formula,
+#               estAngleMean = list(angle = TRUE),
+#               circularAngleMean = list(angle = TRUE),
+#               DM = DM, workBounds = workBounds,
+#               fixPar = fixPar, knownStates = knownStates,
+#               stateNames = stateNames,
+#               prior = prior)
+
+## ----results-fulmar-1a, echo=TRUE, eval=FALSE----------------------------
+#  timeInStates(m2)
+
+## ----results-fulmar-1b, echo=FALSE---------------------------------------
+timeIn1
+
+## ----results-fulmar-2a, echo=TRUE, eval=FALSE----------------------------
+#  timeInStates(m2, by = "birdID")
+
+## ----results-fulmar-2b, echo=FALSE---------------------------------------
+timeIn2
+
+## ----results-fulmar-3, echo=TRUE, eval=FALSE-----------------------------
+#  plotSat(m2, zoom = 7, shape = c(17,1,17,1,17,1), size = 2,
+#          col = rep(c("#E69F00", "#56B4E9", "#009E73"), each = 2),
+#          stateNames = c("sea ARS", "sea Transit",
+#                         "boat ARS", "boat Transit",
+#                         "colony ARS", "colony Transit"),
+#          projargs = newProj, ask = FALSE)
 

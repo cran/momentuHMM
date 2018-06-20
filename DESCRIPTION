@@ -2,12 +2,12 @@ Package: momentuHMM
 Type: Package
 Title: Maximum Likelihood Analysis of Animal Movement Behavior Using
         Multivariate Hidden Markov Models
-Version: 1.4.1
-Date: 2018-05-21
+Version: 1.4.2
+Date: 2018-06-19
 Depends: R (>= 2.10)
 Author: Brett McClintock, Theo Michelot
 Maintainer: Brett McClintock <brett.mcclintock@noaa.gov>
-Description: Extended tools for analyzing telemetry data using generalized hidden Markov models. These include data pre-processing and visualization, fitting HMMs to location and auxiliary biotelemetry or environmental data, biased and correlated random walk movement models, multiple imputation for incorporating location measurement error and missing data, user-specified design matrices and constraints for covariate modelling of parameters, decoding of the state process, visualization of fitted models, model checking and selection, and simulation. See McClintock and Michelot (2017) <doi:10.1111/2041-210X.12995>.
+Description: Extended tools for analyzing telemetry data using generalized hidden Markov models. These include data pre-processing and visualization, fitting HMMs to location and auxiliary biotelemetry or environmental data, biased and correlated random walk movement models, multiple imputation for incorporating location measurement error and missing data, user-specified design matrices and constraints for covariate modelling of parameters, decoding of the state process, visualization of fitted models, model checking and selection, and simulation. See McClintock and Michelot (2018) <doi:10.1111/2041-210X.12995>.
 License: GPL-3
 LazyData: TRUE
 Imports: Rcpp, doParallel, foreach, numDeriv, CircStats, crawl, ggmap,
@@ -16,10 +16,10 @@ Imports: Rcpp, doParallel, foreach, numDeriv, CircStats, crawl, ggmap,
         survival, qdapRegex, geosphere, LaplacesDemon, prodlim, dplyr,
         magrittr
 LinkingTo: Rcpp, RcppArmadillo
-Suggests: testthat, setRNG, knitr, splines, splines2
+Suggests: testthat, setRNG, knitr, splines, splines2 (>= 0.2.8)
 RoxygenNote: 6.0.1
 NeedsCompilation: yes
 VignetteBuilder: knitr
-Packaged: 2018-05-21 23:22:13 UTC; brettmcclintock
+Packaged: 2018-06-19 23:27:16 UTC; brettmcclintock
 Repository: CRAN
-Date/Publication: 2018-05-22 03:22:25 UTC
+Date/Publication: 2018-06-20 05:17:58 UTC

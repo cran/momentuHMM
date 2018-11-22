@@ -61,6 +61,8 @@
 #' @param workBounds An optional named list of 2-column matrices specifying bounds on the working scale of the probability distribution, transition probability, and initial distribution parameters. See \code{\link{fitHMM}}.
 #' @param workcons Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
 #' each data stream. See \code{\link{fitHMM}}.
+#' @param betaCons Matrix of the same dimension as \code{beta0} composed of integers identifying any equality constraints among the t.p.m. parameters. See \code{\link{fitHMM}}.
+#' @param betaRef Numeric vector of length \code{nbStates} indicating the reference elements for the t.p.m. multinomial logit link. See \code{\link{fitHMM}}. 
 #' @param stateNames Optional character vector of length nbStates indicating state names.
 #' @param knownStates Vector of values of the state process which are known prior to fitting the
 #' model (if any). See \code{\link{fitHMM}}. If \code{miData} is a list of \code{\link{momentuHMMData}} objects, then \code{knownStates} can alternatively
@@ -92,6 +94,7 @@
 #' (difference in log-likelihood). See \code{\link[crawl]{crwSimulator}}. Ignored unless \code{miData} is a \code{\link{crwData}} object.
 #' @param scaleSim Scale multiplier for the covariance matrix of the t approximation. See 'scale' argument in \code{\link[crawl]{crwSimulator}}. 
 #' Ignored unless \code{miData} is a \code{\link{crwData}} object.
+#' @param quad.ask Logical, for method='quadrature'. Whether or not the sampler should ask if quadrature sampling should take place. It is used to stop the sampling if the number of likelihood evaluations would be extreme. Default: FALSE. Ignored if \code{ncores>1}.
 #' @param force.quad A logical indicating whether or not to force the execution 
 #' of the quadrature method for large parameter vectors. See \code{\link[crawl]{crwSimulator}}. Default: TRUE. Ignored unless \code{miData} is a \code{\link{crwData}} object and \code{method=``quadrature''}.
 #' @param fullPost Logical indicating whether to draw parameter values as well to simulate full posterior. See \code{\link[crawl]{crwPostIS}}. Ignored unless \code{miData} is a \code{\link{crwData}} object.
@@ -119,15 +122,13 @@
 #' # extract simulated obsData from example data
 #' obsData <- miExample$obsData
 #' 
-#' # extract crwMLE inputs from example data
-#' inits <- miExample$inits # initial state
-#' err.model <- miExample$err.model # error ellipse model
+#' # error ellipse model
+#' err.model <- list(x= ~ ln.sd.x - 1, y =  ~ ln.sd.y - 1, rho =  ~ error.corr)
 #'
 #' # create crwData object by fitting crwMLE models to obsData and predict locations 
 #' # at default intervals for both individuals
 #' crwOut <- crawlWrap(obsData=obsData,
 #'          theta=c(4,0),fixPar=c(1,1,NA,NA),
-#'          initial.state=inits,
 #'          err.model=err.model)
 #' 
 #' # HMM specifications
@@ -178,17 +179,18 @@
 #' @importFrom crawl crwPostIS crwSimulator
 #' @importFrom doParallel registerDoParallel stopImplicitCluster
 #' @importFrom foreach foreach %dopar%
+#' @importFrom doRNG %dorng%
 #' @importFrom raster getZ
 MIfitHMM<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha = 0.95,
                    nbStates, dist, 
                    Par0, beta0 = NULL, delta0 = NULL,
                    estAngleMean = NULL, circularAngleMean = NULL,
-                   formula = ~1, formulaDelta = ~1, stationary = FALSE, 
+                   formula = ~1, formulaDelta = NULL, stationary = FALSE, 
                    verbose = NULL, nlmPar = NULL, fit = TRUE, useInitial = FALSE,
-                   DM = NULL, cons = NULL, userBounds = NULL, workBounds = NULL, workcons = NULL, 
+                   DM = NULL, cons = NULL, userBounds = NULL, workBounds = NULL, workcons = NULL, betaCons = NULL, betaRef = NULL,
                    stateNames = NULL, knownStates = NULL, fixPar = NULL, retryFits = 0, retrySD = NULL, optMethod = "nlm", control = list(), prior = NULL, modelName = NULL,
                    covNames = NULL, spatialCovs = NULL, centers = NULL, centroids = NULL, angleCovs = NULL,
-                   method = "IS", parIS = 1000, dfSim = Inf, grid.eps = 1, crit = 2.5, scaleSim = 1, force.quad = TRUE,
+                   method = "IS", parIS = 1000, dfSim = Inf, grid.eps = 1, crit = 2.5, scaleSim = 1, quad.ask = FALSE, force.quad = TRUE,
                    fullPost = TRUE, dfPostIS = Inf, scalePostIS = 1,thetaSamp = NULL)
 {
 
@@ -229,34 +231,37 @@ MIfitHMM<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha = 0.95,
         distnames <- names(predData)[which(!(names(predData) %in% c("ID","x","y",covNames,znames)))]
       }
       
-      if(all(unlist(lapply(model_fits,function(x) is.null(x$err.model))))) stop("Multiple realizations of the position process cannot be drawn if there is no location measurement error")
-      cat('Drawing',nSims,'realizations from the position process using crawl::crwPostIS... ')
+      #if(all(unlist(lapply(model_fits,function(x) is.null(x$err.model))))) stop("Multiple realizations of the position process cannot be drawn if there is no location measurement error")
+      cat('Drawing',nSims,'realizations from the position process using crawl::crwPostIS...',ifelse(ncores>1 & length(ids)>1,"","\n"))
       
       registerDoParallel(cores=ncores)
-      crwSim <- foreach(i = 1:length(ids), .export="crwSimulator") %dopar% {
-        if(!is.null(model_fits[[i]]$err.model))
+      withCallingHandlers(crwSim <- foreach(i = 1:length(ids), .export="crwSimulator") %dorng% {
+        #if(!is.null(model_fits[[i]]$err.model)){
+          cat("Individual",ids[i],"...\n")
           crawl::crwSimulator(model_fits[[i]],predTime=predData[[Time.name]][which(predData$ID==ids[i] & predData$locType=="p")], method = method, parIS = parIS,
-                                  df = dfSim, grid.eps = grid.eps, crit = crit, scale = scaleSim, force.quad = force.quad)
-      }
+                                  df = dfSim, grid.eps = grid.eps, crit = crit, scale = scaleSim, quad.ask = ifelse(ncores>1, FALSE, quad.ask), force.quad = force.quad)
+        #}
+      },warning=muffleRNGwarning)
       stopImplicitCluster()
       names(crwSim) <- ids
       
       registerDoParallel(cores=ncores)
-      miData<-
-        foreach(j = 1:nSims, .export=c("crwPostIS","prepData"), .errorhandling="pass") %dopar% {
+      withCallingHandlers(miData<-
+        foreach(j = 1:nSims, .export=c("crwPostIS","prepData"), .errorhandling="pass") %dorng% {
           locs<-data.frame()
           for(i in 1:length(ids)){
-            if(!is.null(model_fits[[i]]$err.model)){
+            #if(!is.null(model_fits[[i]]$err.model)){
               tmp<-tryCatch({crawl::crwPostIS(crwSim[[i]], fullPost = fullPost, df = dfPostIS, scale = scalePostIS, thetaSamp = thetaSamp)},error=function(e) e)
               if(!all(class(tmp) %in% c("crwIS","list"))) stop('crawl::crwPostIS error for individual ',ids[i],'; ',tmp,'  Check crwPostIS arguments, crawl::crwMLE model fits, and/or consult crawl documentation.')
               locs<-rbind(locs,tmp$alpha.sim[,c("mu.x","mu.y")])
-            } else {
-              locs<-rbind(locs,predData[which(predData$ID==ids[i]),c("mu.x","mu.y")])
-            }
+            #} else {
+            #  locs<-rbind(locs,predData[which(predData$ID==ids[i]),c("mu.x","mu.y")])
+            #}
           }
           df<-data.frame(x=locs$mu.x,y=locs$mu.y,predData[,c("ID",distnames,covNames,znames),drop=FALSE])[which(predData$locType=="p"),]
           prepData(df,covNames=covNames,spatialCovs=spatialCovs,centers=centers,centroids=centroids,angleCovs=angleCovs)
         }
+      ,warning=muffleRNGwarning)
       stopImplicitCluster()
       cat("DONE\n")
       for(i in which(unlist(lapply(miData,function(x) inherits(x,"error"))))){
@@ -303,13 +308,13 @@ MIfitHMM<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha = 0.95,
     delta0<-vector('list',nSims)
     if(!is.null(tmpdelta0))
       delta0[1:nSims]<-list(tmpdelta0)
-  } else if(length(delta0)!=nSims) stop("delta0 must be a list of length ",nSims)
+  } else if(length(delta0)<nSims) stop("delta0 must be a list of length >=",nSims)
   
   #check HMM inputs and print model message
   test<-fitHMM(miData[[ind[1]]],nbStates, dist, Par0[[ind[1]]], beta0[[ind[1]]], delta0[[ind[1]]],
            estAngleMean, circularAngleMean, formula, formulaDelta, stationary, verbose,
            nlmPar, fit = FALSE, DM, cons,
-           userBounds, workBounds, workcons, stateNames, knownStates[[ind[1]]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName)
+           userBounds, workBounds, workcons, betaCons, betaRef, stateNames, knownStates[[ind[1]]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName)
   
   # fit HMM(s)
   fits <- list()
@@ -322,7 +327,7 @@ MIfitHMM<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha = 0.95,
     fits[[1]]<-suppressMessages(fitHMM(miData[[1]],nbStates, dist, Par0[[1]], beta0[[1]], delta0[[1]],
                                     estAngleMean, circularAngleMean, formula, formulaDelta, stationary, verbose,
                                     nlmPar, fit, DM, cons,
-                                    userBounds, workBounds, workcons, stateNames, knownStates[[1]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName))
+                                    userBounds, workBounds, workcons, betaCons, betaRef, stateNames, knownStates[[1]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName))
     if(retryFits>=1){
       cat("\n")
     }
@@ -335,17 +340,18 @@ MIfitHMM<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha = 0.95,
     delta0[parallelStart:nSims] <- list(tmpPar$delta)
   }
   registerDoParallel(cores=ncores)
-  fits[parallelStart:nSims] <-
-    foreach(j = parallelStart:nSims, .export=c("fitHMM"), .errorhandling="pass") %dopar% {
+  withCallingHandlers(fits[parallelStart:nSims] <-
+    foreach(j = parallelStart:nSims, .export=c("fitHMM"), .errorhandling="pass") %dorng% {
       
       if(nSims>1) cat("     \rImputation ",j,"... ",sep="")
       tmpFit<-suppressMessages(fitHMM(miData[[j]],nbStates, dist, Par0[[j]], beta0[[j]], delta0[[j]],
                                       estAngleMean, circularAngleMean, formula, formulaDelta, stationary, verbose,
                                       nlmPar, fit, DM, cons,
-                                      userBounds, workBounds, workcons, stateNames, knownStates[[j]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName))
+                                      userBounds, workBounds, workcons, betaCons, betaRef, stateNames, knownStates[[j]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName))
       if(retryFits>=1) cat("\n")
       tmpFit
-    }  
+    } 
+  ,warning=muffleRNGwarning)
   stopImplicitCluster()
   cat("DONE\n")
   

@@ -5,13 +5,14 @@
 \title{Simulation tool}
 \usage{
 simData(nbAnimals = 1, nbStates = 2, dist, Par, beta = NULL,
-  delta = NULL, formula = ~1, formulaDelta = ~1, covs = NULL,
+  delta = NULL, formula = ~1, formulaDelta = NULL, covs = NULL,
   nbCovs = 0, spatialCovs = NULL, zeroInflation = NULL,
   oneInflation = NULL, circularAngleMean = NULL, centers = NULL,
-  centroids = NULL, obsPerAnimal = c(500, 1500), initialPosition = c(0,
-  0), DM = NULL, cons = NULL, userBounds = NULL, workBounds = NULL,
-  workcons = NULL, stateNames = NULL, model = NULL, states = FALSE,
-  retrySims = 0, lambda = NULL, errorEllipse = NULL)
+  centroids = NULL, angleCovs = NULL, obsPerAnimal = c(500, 1500),
+  initialPosition = c(0, 0), DM = NULL, cons = NULL, userBounds = NULL,
+  workBounds = NULL, workcons = NULL, betaRef = NULL, stateNames = NULL,
+  model = NULL, states = FALSE, retrySims = 0, lambda = NULL,
+  errorEllipse = NULL)
 }
 \arguments{
 \item{nbAnimals}{Number of observed individuals to simulate.}
@@ -35,7 +36,7 @@ of columns in the design matrix. See details below.}
 \item{beta}{Matrix of regression parameters for the transition probabilities (more information
 in "Details").}
 
-\item{delta}{Initial value for the initial distribution of the HMM. Default: \code{rep(1/nbStates,nbStates)}. If \code{formulaDelta} includes covariates, then \code{delta} must be specified
+\item{delta}{Initial value for the initial distribution of the HMM. Default: \code{rep(1/nbStates,nbStates)}. If \code{formulaDelta} includes a formula, then \code{delta} must be specified
 as a k x (\code{nbStates}-1) matrix, where k is the number of covariates and the columns correspond to states 2:\code{nbStates}. See details below.}
 
 \item{formula}{Regression formula for the transition probability covariates. Default: \code{~1} (no covariate effect). In addition to allowing standard functions in R formulas
@@ -44,7 +45,7 @@ as a k x (\code{nbStates}-1) matrix, where k is the number of covariates and the
 and state- or parameter-specific formulas (see details).
 Any formula terms that are not state- or parameter-specific are included on all of the transition probabilities.}
 
-\item{formulaDelta}{Regression formula for the initial distribution. Default: \code{~1} (no covariate effect). Standard functions in R formulas are allowed (e.g., \code{cos(cov)}, \code{cov1*cov2}, \code{I(cov^2)}).}
+\item{formulaDelta}{Regression formula for the initial distribution. Default: \code{NULL} (no covariate effects and \code{delta} is specified on the real scale). Standard functions in R formulas are allowed (e.g., \code{cos(cov)}, \code{cov1*cov2}, \code{I(cov^2)}). When any formula is provided, then \code{delta} must be specified on the working scale.}
 
 \item{covs}{Covariate values to include in the simulated data, as a dataframe. The names of any covariates specified by \code{covs} can
 be included in \code{formula} and/or \code{DM}. Covariates can also be simulated according to a standard normal distribution, by setting
@@ -89,6 +90,9 @@ for the distance and angle covariates (e.g., 'centroid1.dist', 'centroid1.angle'
 of \code{centroids} as \code{paste0(rep(names(centroids),each=2),c(".dist",".angle"))}. Note that the angle covariates for each centroid are calculated relative to 
 the previous movement direction instead of standard directions relative to the x-axis; this is to allow turning angles to be simulated as a function of these covariates using circular-circular regression.}
 
+\item{angleCovs}{Character vector indicating the names of any circular-circular regression angular covariates in \code{covs} or \code{spatialCovs} that need conversion from standard direction (in radians relative to the x-axis) to turning angle (relative to previous movement direction) 
+using \code{\link{circAngles}}.}
+
 \item{obsPerAnimal}{Either the number of the number of observations per animal (if single value) or the bounds of the number of observations per animal (if vector of two values). In the latter case, 
 the numbers of obervations generated for each animal are uniformously picked from this interval. Alternatively, \code{obsPerAnimal} can be specified as
 a list of length \code{nbAnimals} with each element providing the number of observations (if single value) or the bounds (if vector of two values) for each individual.
@@ -131,6 +135,9 @@ For data streams, each element of \code{workBounds} should be a k x 2 matrix wit
 \item{workcons}{Deprecated. An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
 each data stream. Warning: use of \code{workcons} is recommended only for advanced users implementing unusual parameter constraints 
 through a combination of \code{DM}, \code{cons}, and \code{workcons}. \code{workcons} is ignored for any given data stream unless \code{DM} is specified.}
+
+\item{betaRef}{Numeric vector of length \code{nbStates} indicating the reference elements for the t.p.m. multinomial logit link. Default: NULL, in which case
+the diagonal elements of the t.p.m. are the reference. See \code{\link{fitHMM}}.}
 
 \item{stateNames}{Optional character vector of length nbStates indicating state names.}
 
@@ -212,7 +219,7 @@ and six columns (six non-diagonal elements in the 3x3 transition probability mat
 filled in row-wise).
 In a covariate-free model (default), \code{beta} has one row, for the intercept.
 
-\item When covariates are not included in \code{formulaDelta} (i.e. \code{formulaDelta=~1}), then \code{delta} is specified as a vector of length \code{nbStates} that 
+\item When covariates are not included in \code{formulaDelta} (i.e. \code{formulaDelta=NULL}), then \code{delta} is specified as a vector of length \code{nbStates} that 
 sums to 1.  When covariates are included in \code{formulaDelta}, then \code{delta} must be specified
 as a k x (\code{nbStates}-1) matrix of working parameters, where k is the number of regression coefficients and the columns correspond to states 2:\code{nbStates}. For example, in a 3-state
 HMM with \code{formulaDelta=~cov1+cov2}, the matrix \code{delta} has three rows (intercept + two covariates)

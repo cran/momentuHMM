@@ -91,13 +91,9 @@ head(rawData)
 #  rawData$y <- attr(utmcoord,"coords")[,2]
 
 ## ----crawl, echo=TRUE, eval=FALSE----------------------------------------
-#  # initial parameters for crawl fit
-#  inits <- list(a = c(rawData$x[1],0,rawData$y[1],0),
-#                P = diag(c(5000^2, 10*3600^2, 5000^2, 10*3600^2)))
-#  
 #  # fit crawl model
-#  crwOut <- crawlWrap(obsData=rawData, timeStep="hour", initial.state=inits,
-#                      theta=c(4,-10), fixPar=c(NA,NA))
+#  crwOut <- crawlWrap(obsData=rawData, timeStep="hour",
+#                      theta=c(6.855, -0.007), fixPar=c(NA,NA))
 
 ## ----prepData, echo=TRUE, eval=FALSE-------------------------------------
 #  # create momentuHMMData object from crwData object
@@ -413,7 +409,8 @@ stepDM<-matrix(c(1,0,0,0,0,0,0,0,0,
                         "scale:(Intercept)","scale_2","scale_3",
                         paste0("zeromass_",1:nbStates,":(Intercept)"))))
 stepworkBounds<-matrix(c(rep(-Inf,4),0,0,rep(-Inf,3),
-                   rep(Inf,ncol(stepDM))),ncol(stepDM),2)
+                   rep(Inf,ncol(stepDM))),ncol(stepDM),2,
+                   dimnames=list(colnames(stepDM),c("lower","upper")))
 stepBounds<-matrix(c(0,5,
                      0,5,
                      0,5,
@@ -423,9 +420,7 @@ stepBounds<-matrix(c(0,5,
                      0,1,
                      0,1,
                      0,1),nrow=3*nbStates,byrow=TRUE,
-                    dimnames=list(c(paste0("shape_",1:nbStates),
-                                    paste0("scale_",1:nbStates),
-                                    paste0("zeromass_",1:nbStates))))
+                    dimnames=list(rownames(stepDM),c("lower","upper")))
 
 ## ----spec-hsAngle, echo=TRUE, eval=TRUE----------------------------------
 angleDM <- matrix(c(1,0,0,
@@ -438,11 +433,12 @@ angleDM <- matrix(c(1,0,0,
 angleBounds <- matrix(c(0,0.95,
                         0,0.95,
                         0,0.95),nrow=nbStates,byrow=TRUE,
-                      dimnames=list(paste0("concentration_",1:nbStates)))
+                      dimnames=list(rownames(angleDM),c("lower","upper")))
 transitcons <- boot::logit((0.75 - angleBounds[3,1])
                            /(angleBounds[3,2] - angleBounds[3,1]))
 angleworkBounds <- matrix(c(-Inf,transitcons,-Inf,
-                            rep(Inf,2),0),ncol(angleDM),2)
+                            rep(Inf,2),0),ncol(angleDM),2,
+                          dimnames=list(colnames(angleDM),c("lower","upper")))
 
 ## ----spec-hsDive, echo=TRUE, eval=FALSE----------------------------------
 #  omegaDM <- matrix(c(1,0,0,0,0,0,
@@ -462,7 +458,8 @@ angleworkBounds <- matrix(c(-Inf,transitcons,-Inf,
 #                                  "zeromass_1:(Intercept)",
 #                                  "zeromass_23:(Intercept)")))
 #  omegaworkBounds <- matrix(c(-Inf,0,-Inf,0,-Inf,-Inf,
-#                              rep(Inf,ncol(omegaDM))),ncol(omegaDM),2)
+#                              rep(Inf,ncol(omegaDM))),ncol(omegaDM),2,
+#                            dimnames=list(colnames(omegaDM),c("lower","upper")))
 #  omegaBounds <- matrix(c(1,10,
 #                          1,10,
 #                          1,10,
@@ -472,9 +469,7 @@ angleworkBounds <- matrix(c(-Inf,transitcons,-Inf,
 #                          0,1,
 #                          0,1,
 #                          0,1),nrow=nbStates*3,byrow=TRUE,
-#                      dimnames=list(c(paste0("shape1_",1:nbStates),
-#                                      paste0("shape2_",1:nbStates),
-#                                      paste0("zeromass_",1:nbStates))))
+#                        dimnames=list(rownames(omegaDM),c("lower","upper")))
 
 ## ----spec-hsFixPar, echo=TRUE, eval=FALSE--------------------------------
 #  fixPar <- list(step=c(rep(NA,nbStates*2),NA,NA,boot::logit(1.e-100)),
@@ -605,11 +600,11 @@ angleworkBounds <- matrix(c(-Inf,transitcons,-Inf,
 #  stepworkBounds <- matrix(c(-Inf,Inf,
 #                             -Inf,Inf,
 #                             -Inf,Inf,
-#                             0,Inf),ncol(stepDM),2,byrow=TRUE)
+#                             0,Inf),ncol(stepDM),2,byrow=TRUE,
+#                           dimnames=list(colnames(stepDM),c("lower","upper")))
 #  
-#  
+#  # include trip-level effects on angle mean concentration parameter
 #  nbTrips <- length(unique(fulmar_data$ID))
-#  
 #  angleDM <- matrix(c("sea.angle",0,0,0,0,rep(0,2*nbTrips),
 #                      "sea.angle",0,0,0,0,rep(0,2*nbTrips),
 #                      0,"boat.angle",0,0,0,rep(0,2*nbTrips),
@@ -636,7 +631,8 @@ angleworkBounds <- matrix(c(-Inf,transitcons,-Inf,
 #                              -Inf,Inf,
 #                              0,Inf,
 #                              rep(c(-Inf,Inf),nbTrips),
-#                              rep(c(0,Inf),nbTrips)),ncol(angleDM),2,byrow=TRUE)
+#                              rep(c(0,Inf),nbTrips)),ncol(angleDM),2,byrow=TRUE,
+#                           dimnames=list(colnames(angleDM),c("lower","upper")))
 #  
 #  dDM <- matrix(c(1,1,0,0,
 #                  1,1,0,0,
@@ -659,9 +655,10 @@ angleworkBounds <- matrix(c(-Inf,transitcons,-Inf,
 #  dworkBounds <- matrix(c(-Inf,Inf,
 #                          0,Inf,
 #                          -Inf,Inf,
-#                          0,Inf),ncol(dDM),2,byrow=TRUE)
+#                          0,Inf),ncol(dDM),2,byrow=TRUE,
+#                        dimnames=list(colnames(dDM),c("lower","upper")))
 #  
-#  DM<-list(step = stepDM, angle = angleDM, d = dDM)
+#  DM <- list(step = stepDM, angle = angleDM, d = dDM)
 #  
 #  workBounds <- list(step = stepworkBounds,
 #                     angle = angleworkBounds,
@@ -683,18 +680,35 @@ angleworkBounds <- matrix(c(-Inf,transitcons,-Inf,
 #  # Constrain model to BRW (instead of BCRW)
 #  fixPar$angle <- c(rep(1.e+7, 3), rep(NA, 2+2*nbTrips))
 
+## ----spec-fulmar-4, echo=FALSE, eval=TRUE--------------------------------
+nbStates <- 6
+betaCons <- matrix(1:(3*nbStates*(nbStates-1)),3,nbStates*(nbStates-1),
+                   dimnames=list(c("(Intercept)","boat.dist","time"),
+                                 paste(rep(1:nbStates,each=nbStates),"->",rep(1:nbStates,nbStates))[(1:(nbStates*nbStates))[-diag(matrix(1:(nbStates*nbStates),nbStates,nbStates))]]))
+betaCons["(Intercept)",c("1 -> 4","1 -> 6","3 -> 2","3 -> 4","3 -> 6","5 -> 2","5 -> 4","5 -> 6")] <- betaCons["(Intercept)","1 -> 2"] # constrain ARS -> Tr intercept
+betaCons["(Intercept)",c("1 -> 5","3 -> 1","3 -> 5","5 -> 1","5 -> 3")] <- betaCons["(Intercept)","1 -> 3"] # constrain ARS -> ARS intercept
+betaCons["(Intercept)",c("2 -> 3","2 -> 5","4 -> 1","4 -> 3","4 -> 5","6 -> 1","6 -> 3","6 -> 5")] <- betaCons["(Intercept)","2 -> 1"] # constrain Tr -> ARS intercept
+betaCons["(Intercept)",c("2 -> 6","4 -> 2","4 -> 6","6 -> 2","6 -> 4")] <- betaCons["(Intercept)","2 -> 4"] # constrain Tr -> Tr intercept
+betaCons["boat.dist",c("1 -> 4","2 -> 3","2 -> 4")] <- betaCons["boat.dist","1 -> 3"] # constrain boat.dist 1 -> 3 = 1 -> 4 = 2 -> 3 = 2 -> 4
+betaCons["boat.dist","4 -> 3"] <- betaCons["boat.dist","3 -> 4"] # constrain boat.dist 3 -> 4 = 4 -> 3
+betaCons["boat.dist",c("5 -> 4","6 -> 3","6 -> 4")] <- betaCons["boat.dist","5 -> 3"] # constrain boat.dist 5 -> 3 = 5 -> 4 = 6 -> 3 = 6 -> 4
+betaCons["time",c("1 -> 6","2 -> 5","2 -> 6")] <- betaCons["time","1 -> 5"] # constrain time 1 -> 5 = 1 -> 6 = 2 -> 5 = 2 -> 6
+betaCons["time",c("3 -> 6", "4 -> 5", "4 -> 6")] <- betaCons["time","3 -> 5"] # constrain time 3 -> 5 = 3 -> 6 = 4 -> 5 = 4 -> 6
+betaCons["time","6 -> 5"] <- betaCons["time","5 -> 6"] # constrain time 5 -> 6 = 6 -> 5
+
+
+## ----spec-fulmar-5, echo=TRUE, eval=TRUE, size='small'-------------------
+betaCons
+
 ## ----fit-fulmar-1, echo=TRUE, eval=FALSE---------------------------------
-#  prior <- function(par) {sum(dnorm(par[27+1:90],0,100,log=TRUE))}
-#  
 #  m2 <- fitHMM(fulmar_data, nbStates, dist,
 #               Par0 = Par0$Par, beta0 = Par0$beta0,
 #               formula = formula,
 #               estAngleMean = list(angle = TRUE),
 #               circularAngleMean = list(angle = TRUE),
-#               DM = DM, workBounds = workBounds,
+#               DM = DM, workBounds = workBounds, betaCons = betaCons,
 #               fixPar = fixPar, knownStates = knownStates,
-#               stateNames = stateNames,
-#               prior = prior)
+#               stateNames = stateNames)
 
 ## ----results-fulmar-1a, echo=TRUE, eval=FALSE----------------------------
 #  timeInStates(m2)

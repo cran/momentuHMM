@@ -83,7 +83,8 @@ stepDM <- matrix(c(1,0,0,0,
 stepworkBounds <- matrix(c(-Inf,Inf,
                            -Inf,Inf,
                            -Inf,Inf,
-                           0,Inf),ncol(stepDM),2,byrow=TRUE)
+                           0,Inf),ncol(stepDM),2,byrow=TRUE,
+                         dimnames=list(colnames(stepDM),c("lower","upper")))
 
 
 nbTrips <- length(unique(fulmar_data$ID))
@@ -108,7 +109,8 @@ angleworkBounds <- matrix(c(-Inf,Inf,
                             -Inf,Inf,
                             0,Inf,
                             rep(c(-Inf,Inf),nbTrips),
-                            rep(c(0,Inf),nbTrips)),ncol(angleDM),2,byrow=TRUE)
+                            rep(c(0,Inf),nbTrips)),ncol(angleDM),2,byrow=TRUE,
+                          dimnames=list(colnames(angleDM),c("lower","upper")))
 
 dDM <- matrix(c(1,1,0,0,
                 1,1,0,0,
@@ -128,13 +130,29 @@ dDM <- matrix(c(1,1,0,0,
 dworkBounds <- matrix(c(-Inf,Inf,
                         0,Inf,
                         -Inf,Inf,
-                        0,Inf),ncol(dDM),2,byrow=TRUE)
+                        0,Inf),ncol(dDM),2,byrow=TRUE,
+                      dimnames=list(colnames(dDM),c("lower","upper")))
 
 DM<-list(step=stepDM,angle=angleDM,d=dDM)
 workBounds <- list(step=stepworkBounds,angle=angleworkBounds,d=dworkBounds)
 
 # state transition formula similar to Pirotta et al
 formula <- ~ toState3(boat.dist) + toState4(boat.dist) + toState5(time) + toState6(time)
+
+# use betaCons to constrain: 1) ARS and Tr intercepts; and 2) boat and time effects to be the same for each sea, boat, and colony state
+betaCons <- matrix(1:(3*nbStates*(nbStates-1)),3,nbStates*(nbStates-1),
+                   dimnames=list(c("(Intercept)","boat.dist","time"),
+                                 paste(rep(1:nbStates,each=nbStates),"->",rep(1:nbStates,nbStates))[(1:(nbStates*nbStates))[-diag(matrix(1:(nbStates*nbStates),nbStates,nbStates))]]))
+betaCons["(Intercept)",c("1 -> 4","1 -> 6","3 -> 2","3 -> 4","3 -> 6","5 -> 2","5 -> 4","5 -> 6")] <- betaCons["(Intercept)","1 -> 2"] # constrain ARS -> Tr intercept
+betaCons["(Intercept)",c("1 -> 5","3 -> 1","3 -> 5","5 -> 1","5 -> 3")] <- betaCons["(Intercept)","1 -> 3"] # constrain ARS -> ARS intercept
+betaCons["(Intercept)",c("2 -> 3","2 -> 5","4 -> 1","4 -> 3","4 -> 5","6 -> 1","6 -> 3","6 -> 5")] <- betaCons["(Intercept)","2 -> 1"] # constrain Tr -> ARS intercept
+betaCons["(Intercept)",c("2 -> 6","4 -> 2","4 -> 6","6 -> 2","6 -> 4")] <- betaCons["(Intercept)","2 -> 4"] # constrain Tr -> Tr intercept
+betaCons["boat.dist",c("1 -> 4","2 -> 3","2 -> 4")] <- betaCons["boat.dist","1 -> 3"] # constrain boat.dist 1 -> 3 = 1 -> 4 = 2 -> 3 = 2 -> 4
+betaCons["boat.dist","4 -> 3"] <- betaCons["boat.dist","3 -> 4"] # constrain boat.dist 3 -> 4 = 4 -> 3
+betaCons["boat.dist",c("5 -> 4","6 -> 3","6 -> 4")] <- betaCons["boat.dist","5 -> 3"] # constrain boat.dist 5 -> 3 = 5 -> 4 = 6 -> 3 = 6 -> 4
+betaCons["time",c("1 -> 6","2 -> 5","2 -> 6")] <- betaCons["time","1 -> 5"] # constrain time 1 -> 5 = 1 -> 6 = 2 -> 5 = 2 -> 6
+betaCons["time",c("3 -> 6", "4 -> 5", "4 -> 6")] <- betaCons["time","3 -> 5"] # constrain time 3 -> 5 = 3 -> 6 = 4 -> 5 = 4 -> 6
+betaCons["time","6 -> 5"] <- betaCons["time","5 -> 6"] # constrain time 5 -> 6 = 6 -> 5
 
 # specify knownStates
 knownStates <- rep(NA,nrow(fulmar_data))
@@ -146,10 +164,10 @@ fixPar$delta <- exp(c(0,fixPar$delta))/sum(exp(c(0,fixPar$delta)))
 fixPar$angle <- c(rep(1.e+7,3),rep(NA,2+2*nbTrips)) # fix angle mean parameters to large value and therefore constrain model to BRW (instead of BCRW)
 
 # to speed things up, use starting values obtained after exploring the likelihood surface using retryFits
-stepPar0 <- c(-0.04,0.93,6.2,0.85)
-anglePar0 <- c(0,0,0,-0.63,0.16,-0.3,0.65,-0.48,1.26,-0.79,-0.18,-12.43,-13.74,-1.31,-1.29,-15.96,-13.59,-9.71,2.62)
-dPar0 <- c(8.01,0.8,-0.36,-5)
-beta0 <- matrix(c(-2.59,0,0,-29.49,-54.49,0,-12.29,0.02,0,-8.05,0,5.47,-6.54,0,4.48,-2.19,0,0,-11.6,-0.54,0,-49.99,-95.78,0,-42.07,0,80.76,-20.89,0,39.1,-4.22,0,0,-6.53,0,0,-0.29,2.96,0,-5.35,0,0.53,-9.46,0,-4.31,-3.89,0,0,-2.56,0,0,-18.37,-27.52,0,-8.59,0,-3.75,-2.37,0,2.01,-2.41,0,0,-4.47,0,0,-11.47,0.4,0,-11.43,0.43,0,-4.93,0,3.46,-4.97,0,0,-10.44,0,0,-11.78,-0.15,0,-38.36,-72.02,0,0.48,0,-3.7),3,nbStates*(nbStates-1))
+stepPar0 <- c(-0.06,0.92,6.24,0.83)
+anglePar0 <- c(0,0,0,-0.78,0.29,-0.22,0.8,0.08,1.29,-0.88,0.21,-11.21,-13.76,-10.27,-58.07,-16.23,-14.69,-9.49,2.52)
+dPar0 <- c(8.03,0.79,-0.34,-35.15)
+beta0 <- matrix(c(-4.5,0,0,-5.08,-3.63,0,-4.5,-3.63,0,-5.08,0,1.66,-4.5,0,1.66,-3.8,0,0,-3.8,-3.63,0,-4.11,-3.63,0,-3.8,0,1.66,-4.11,0,1.66,-5.08,0,0,-4.5,0,0,-4.5,-3.73,0,-5.08,0,1.09,-4.5,0,1.09,-3.8,0,0,-4.11,0,0,-3.8,-3.73,0,-3.8,0,1.09,-4.11,0,1.09,-5.08,0,0,-4.5,0,0,-5.08,-1.93,0,-4.5,-1.93,0,-4.5,0,1.68,-3.8,0,0,-4.11,0,0,-3.8,-1.93,0,-4.11,-1.93,0,-3.8,0,1.68),3,nbStates*(nbStates-1))
 Par0 <- list(Par=list(step=stepPar0,angle=anglePar0,d=dPar0),beta0=beta0)
 
 #############################################################################################
@@ -157,8 +175,7 @@ Par0 <- list(Par=list(step=stepPar0,angle=anglePar0,d=dPar0),beta0=beta0)
 #############################################################################################
 m2<-fitHMM(fulmar_data,nbStates,dist,Par0=Par0$Par,beta0=Par0$beta0,formula=formula,estAngleMean=list(angle=TRUE),circularAngleMean=list(angle=TRUE),
            DM=DM,
-           workBounds=workBounds,fixPar=fixPar,knownStates=knownStates,stateNames=stateNames,
-           prior=function(par) {sum(dnorm(par[27+1:90],0,100,log=TRUE))}) # use priors on t.p.m to help prevent numerical issues 
+           workBounds=workBounds,betaCons=betaCons,fixPar=fixPar,knownStates=knownStates,stateNames=stateNames)
 #############################################################################################
 
 plot(m2,covs=data.frame(sea.angle=0,boat.angle=0,colony.angle=0),ask=FALSE)
@@ -173,4 +190,4 @@ timeInStates(m2, by="birdID")
 plotSat(m2,zoom=7,shape=c(17,1,17,1,17,1),size=2,col=rep(c("#E69F00", "#56B4E9", "#009E73"),each=2),stateNames=c("sea ARS","sea Transit","boat ARS","boat Transit","colony ARS","colony Transit"),projargs=newProj,ask=FALSE)
 
 # plot stationary state probabilities as a function of covariates
-plotStationary(m2,covs=data.frame(boat.dist=-0.5),legend.pos="topright")
+plotStationary(m2,covs=data.frame(boat.dist=-0.5),plotCI=TRUE,legend.pos="topright")

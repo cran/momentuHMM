@@ -16,20 +16,21 @@ Print \code{miSum}
 }
 \examples{
 \dontrun{
-# Extract data and crawl inputs from miExample
+# Extract data from miExample
 obsData <- miExample$obsData
-inits <- miExample$inits
-err.model <- miExample$err.model
+
+# error ellipse model
+err.model <- list(x= ~ ln.sd.x - 1, y =  ~ ln.sd.y - 1, rho =  ~ error.corr)
 
 # Fit crawl to obsData
 crwOut <- crawlWrap(obsData,theta=c(4,0),fixPar=c(1,1,NA,NA),
-                    initial.state=inits,err.model=err.model)
+                    err.model=err.model)
                     
 # Fit four imputations
 bPar <- miExample$bPar
 HMMfits <- MIfitHMM(crwOut,nSims=4,poolEstimates=FALSE,
                    nbStates=2,dist=list(step="gamma",angle="vm"),
-                   Par0=bPar$Par,beta0=bPar$beta,delta0=bPar$delta,
+                   Par0=bPar$Par,beta0=bPar$beta,
                    formula=~cov1+cos(cov2),
                    estAngleMean=list(angle=TRUE),
                    covNames=c("cov1","cov2"))

@@ -35,20 +35,21 @@
 #'
 #' @examples
 #' \dontrun{
-#' # Extract data and crawl inputs from miExample
+#' # Extract data from miExample
 #' obsData <- miExample$obsData
-#' inits <- miExample$inits
-#' err.model <- miExample$err.model
+#' 
+#' # error ellipse model
+#' err.model <- list(x= ~ ln.sd.x - 1, y =  ~ ln.sd.y - 1, rho =  ~ error.corr)
 #' 
 #' # Fit crawl to obsData
 #' crwOut <- crawlWrap(obsData,theta=c(4,0),fixPar=c(1,1,NA,NA),
-#'                     initial.state=inits,err.model=err.model)
+#'                     err.model=err.model)
 #'                     
 #' # Fit four imputations
 #' bPar <- miExample$bPar
 #' HMMfits <- MIfitHMM(crwOut,nSims=4,poolEstimates=FALSE,
 #'                    nbStates=2,dist=list(step="gamma",angle="vm"),
-#'                    Par0=bPar$Par,beta0=bPar$beta,delta0=bPar$delta,
+#'                    Par0=bPar$Par,beta0=bPar$beta,
 #'                    formula=~cov1+cos(cov2),
 #'                    estAngleMean=list(angle=TRUE),
 #'                    covNames=c("cov1","cov2"))
@@ -69,12 +70,7 @@ plot.miSum <- function(x,animals=NULL,covs=NULL,ask=TRUE,breaks="Sturges",hist.y
   m$mle$beta <- x$Par$beta$beta$est
   m$mle$delta <- x$Par$real$delta$est
   m$mod <- list()
-  m$mod$estimate <- x$MIcombine$coefficients
-  for(i in names(m$conditions$dist)){
-    m$conditions$cons[[i]]<-rep(1,length(m$conditions$cons[[i]]))
-    m$conditions$workcons[[i]]<-rep(0,length(m$conditions$workcons[[i]]))
-    m$conditions$workBounds[[i]]<-matrix(c(-Inf,Inf),nrow(m$conditions$workBounds[[i]]),2,byrow=TRUE)
-  }
+  m$mod$estimate <- expandPar(m$MIcombine$coefficients,m$conditions$optInd,unlist(m$conditions$fixPar),m$conditions$wparIndex,m$conditions$betaCons,length(m$stateNames),m$covsDelta,m$conditions$stationary,nrow(m$Par$beta$beta$est)-1)
   if(!is.null(m$mle$beta)) m$conditions$workBounds$beta<-matrix(c(-Inf,Inf),length(m$mle$beta),2,byrow=TRUE)
   if(!is.null(m$Par$beta$delta$est)) m$conditions$workBoundsdelta<-matrix(c(-Inf,Inf),length(m$Par$beta$delta$est),2,byrow=TRUE)
   

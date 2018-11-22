@@ -6,16 +6,17 @@
 \usage{
 MIfitHMM(miData, nSims, ncores = 1, poolEstimates = TRUE, alpha = 0.95,
   nbStates, dist, Par0, beta0 = NULL, delta0 = NULL, estAngleMean = NULL,
-  circularAngleMean = NULL, formula = ~1, formulaDelta = ~1,
+  circularAngleMean = NULL, formula = ~1, formulaDelta = NULL,
   stationary = FALSE, verbose = NULL, nlmPar = NULL, fit = TRUE,
   useInitial = FALSE, DM = NULL, cons = NULL, userBounds = NULL,
-  workBounds = NULL, workcons = NULL, stateNames = NULL,
-  knownStates = NULL, fixPar = NULL, retryFits = 0, retrySD = NULL,
-  optMethod = "nlm", control = list(), prior = NULL, modelName = NULL,
-  covNames = NULL, spatialCovs = NULL, centers = NULL, centroids = NULL,
-  angleCovs = NULL, method = "IS", parIS = 1000, dfSim = Inf,
-  grid.eps = 1, crit = 2.5, scaleSim = 1, force.quad = TRUE,
-  fullPost = TRUE, dfPostIS = Inf, scalePostIS = 1, thetaSamp = NULL)
+  workBounds = NULL, workcons = NULL, betaCons = NULL, betaRef = NULL,
+  stateNames = NULL, knownStates = NULL, fixPar = NULL, retryFits = 0,
+  retrySD = NULL, optMethod = "nlm", control = list(), prior = NULL,
+  modelName = NULL, covNames = NULL, spatialCovs = NULL, centers = NULL,
+  centroids = NULL, angleCovs = NULL, method = "IS", parIS = 1000,
+  dfSim = Inf, grid.eps = 1, crit = 2.5, scaleSim = 1,
+  quad.ask = FALSE, force.quad = TRUE, fullPost = TRUE, dfPostIS = Inf,
+  scalePostIS = 1, thetaSamp = NULL)
 }
 \arguments{
 \item{miData}{A \code{\link{crwData}} object, a \code{\link{crwSim}} object, or a list of \code{\link{momentuHMMData}} objects.}
@@ -85,6 +86,10 @@ distribution parameters for each data stream. See \code{\link{fitHMM}}.}
 \item{workcons}{Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
 each data stream. See \code{\link{fitHMM}}.}
 
+\item{betaCons}{Matrix of the same dimension as \code{beta0} composed of integers identifying any equality constraints among the t.p.m. parameters. See \code{\link{fitHMM}}.}
+
+\item{betaRef}{Numeric vector of length \code{nbStates} indicating the reference elements for the t.p.m. multinomial logit link. See \code{\link{fitHMM}}.}
+
 \item{stateNames}{Optional character vector of length nbStates indicating state names.}
 
 \item{knownStates}{Vector of values of the state process which are known prior to fitting the
@@ -136,6 +141,8 @@ See \code{\link{prepData}}. Ignored unless \code{miData} is a \code{\link{crwDat
 \item{scaleSim}{Scale multiplier for the covariance matrix of the t approximation. See 'scale' argument in \code{\link[crawl]{crwSimulator}}. 
 Ignored unless \code{miData} is a \code{\link{crwData}} object.}
 
+\item{quad.ask}{Logical, for method='quadrature'. Whether or not the sampler should ask if quadrature sampling should take place. It is used to stop the sampling if the number of likelihood evaluations would be extreme. Default: FALSE. Ignored if \code{ncores>1}.}
+
 \item{force.quad}{A logical indicating whether or not to force the execution 
 of the quadrature method for large parameter vectors. See \code{\link[crawl]{crwSimulator}}. Default: TRUE. Ignored unless \code{miData} is a \code{\link{crwData}} object and \code{method=``quadrature''}.}
 
@@ -185,15 +192,13 @@ and all arguments related to \code{\link[crawl]{crwSimulator}}, \code{\link[craw
 # extract simulated obsData from example data
 obsData <- miExample$obsData
 
-# extract crwMLE inputs from example data
-inits <- miExample$inits # initial state
-err.model <- miExample$err.model # error ellipse model
+# error ellipse model
+err.model <- list(x= ~ ln.sd.x - 1, y =  ~ ln.sd.y - 1, rho =  ~ error.corr)
 
 # create crwData object by fitting crwMLE models to obsData and predict locations 
 # at default intervals for both individuals
 crwOut <- crawlWrap(obsData=obsData,
          theta=c(4,0),fixPar=c(1,1,NA,NA),
-         initial.state=inits,
          err.model=err.model)
 
 # HMM specifications

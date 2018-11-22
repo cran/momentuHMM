@@ -19,7 +19,9 @@ getPar<-function(m){
   
   if(is.miHMM(m)) m <- m$miSum
   
+  m$conditions$optInd <- numeric() # extra hack needed for bc
   m <- delta_bc(m)
+  m$conditions$optInd <- NULL # extra hack needed for bc
   
   if(!is.null(m$mod$hessian) & inherits(m$CIbeta,"error")){
     m$mod$hessian <- NULL
@@ -38,6 +40,10 @@ getPar<-function(m){
   parindex <- c(0,cumsum(unlist(parCount)))
   names(parindex) <- c(distnames,"beta")
   
+  if(is.null(m$conditions$formulaDelta)) {
+    formDelta <- ~1
+  } else formDelta <- m$conditions$formulaDelta
+  
   Par <- list()
   if(is.miSum(m)){
     m$mle<-lapply(m$Par$real[distnames],function(x) x$est)
@@ -49,7 +55,7 @@ getPar<-function(m){
       Par[[i]] <- c(t(unname(m$mle[[i]])))
     }
     beta <- unname(nw2w(m$Par$beta$beta$est,m$conditions$workBounds$beta))
-    if(!length(attr(terms.formula(m$conditions$formulaDelta),"term.labels"))){
+    if(!length(attr(terms.formula(formDelta),"term.labels")) & is.null(m$conditions$formulaDelta)){
       delta <- unname(m$Par$real$delta$est[1,])
     } else {
       delta <- unname(nw2w(m$Par$beta$delta$est,m$conditions$workBounds$delta))
@@ -65,7 +71,7 @@ getPar<-function(m){
       Par[[i]] <- par
     }
     beta <- unname(matrix(m$mod$estimate[parindex[["beta"]]+1:length(m$mle$beta)],nrow(m$mle$beta),ncol(m$mle$beta)))#unname(nw2w(m$mle$beta,m$conditions$workBounds$beta))
-    if(!length(attr(terms.formula(m$conditions$formulaDelta),"term.labels"))){
+    if(!length(attr(terms.formula(formDelta),"term.labels")) & is.null(m$conditions$formulaDelta)){
       delta <- unname(m$mle$delta[1,])
     } else {
       delta <- unname(matrix(m$mod$estimate[parindex[["beta"]]+length(m$mle$beta)+1:length(m$CIbeta$delta$est)],nrow(m$CIbeta$delta$est),ncol(m$CIbeta$delta$est)))#unname(nw2w(m$CIbeta$delta$est,m$conditions$workBounds$delta))

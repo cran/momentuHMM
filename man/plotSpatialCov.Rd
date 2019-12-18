@@ -4,15 +4,27 @@
 \alias{plotSpatialCov}
 \title{Plot observations on raster image}
 \usage{
-plotSpatialCov(data, spatialCov, segments = TRUE, compact = TRUE,
-  col = NULL, alpha = 1, size = 1, shape = 16, states = NULL,
-  animals = NULL, ask = TRUE, return = FALSE, stateNames = NULL)
+plotSpatialCov(
+  data,
+  spatialCov,
+  segments = TRUE,
+  compact = TRUE,
+  col = NULL,
+  alpha = 1,
+  size = 1,
+  shape = 16,
+  states = NULL,
+  animals = NULL,
+  ask = TRUE,
+  return = FALSE,
+  stateNames = NULL
+)
 }
 \arguments{
 \item{data}{Data frame or \code{\link{momentuHMMData}} object, with necessary fields 'x' (longitudinal direction) and 'y' (latitudinal direction).  A \code{\link{momentuHMM}}, \code{\link{miHMM}}, or \code{\link{miSum}} object is also permitted, from which the data will be extracted.
 If \code{states=NULL} and a \code{momentuHMM}, \code{miHMM}, or \code{miSum} object is provided, the decoded states are automatically plotted.}
 
-\item{spatialCov}{\code{\link[raster]{RasterLayer-class}} object on which to plot the location data}
+\item{spatialCov}{\code{\link[=RasterLayer-class]{RasterLayer}} object on which to plot the location data}
 
 \item{segments}{\code{TRUE} if segments should be plotted between the observations (default),
 \code{FALSE} otherwise.}

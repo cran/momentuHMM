@@ -4,11 +4,24 @@
 \alias{plot.miSum}
 \title{Plot \code{miSum}}
 \usage{
-\method{plot}{miSum}(x, animals = NULL, covs = NULL, ask = TRUE,
-  breaks = "Sturges", hist.ylim = NULL, sepAnimals = FALSE,
-  sepStates = FALSE, col = NULL, cumul = TRUE, plotTracks = TRUE,
-  plotCI = FALSE, alpha = 0.95, plotStationary = FALSE,
-  plotEllipse = TRUE, ...)
+\method{plot}{miSum}(
+  x,
+  animals = NULL,
+  covs = NULL,
+  ask = TRUE,
+  breaks = "Sturges",
+  hist.ylim = NULL,
+  sepAnimals = FALSE,
+  sepStates = FALSE,
+  col = NULL,
+  cumul = TRUE,
+  plotTracks = TRUE,
+  plotCI = FALSE,
+  alpha = 0.95,
+  plotStationary = FALSE,
+  plotEllipse = TRUE,
+  ...
+)
 }
 \arguments{
 \item{x}{Object \code{miSum} (as return by \code{\link{MIpool}})}
@@ -59,6 +72,9 @@ state, and two thirds to the second state, the plots of the densities in the fir
 weighted by a factor 1/3, and in the second state by a factor 2/3.
 }
 \examples{
+\dontshow{
+set.seed(2,kind="Mersenne-Twister",normal.kind="Inversion")
+}
 \dontrun{
 # Extract data from miExample
 obsData <- miExample$obsData

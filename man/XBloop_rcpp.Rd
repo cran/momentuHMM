@@ -4,8 +4,19 @@
 \alias{XBloop_rcpp}
 \title{Get XB}
 \usage{
-XBloop_rcpp(DM, Xvec, nbObs, nr, nc, circularAngleMean, consensus, rindex,
-  cindex, nbStates)
+XBloop_rcpp(
+  DM,
+  Xvec,
+  nbObs,
+  nr,
+  nc,
+  circularAngleMean,
+  consensus,
+  rindex,
+  cindex,
+  nbStates,
+  refCoeff = 1
+)
 }
 \arguments{
 \item{DM}{design matrix}
@@ -27,6 +38,8 @@ XBloop_rcpp(DM, Xvec, nbObs, nr, nc, circularAngleMean, consensus, rindex,
 \item{cindex}{column index for design matrix}
 
 \item{nbStates}{number of states}
+
+\item{refCoeff}{intercept coefficient for circular-circular regression model}
 }
 \value{
 XB matrix

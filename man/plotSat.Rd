@@ -4,10 +4,23 @@
 \alias{plotSat}
 \title{Plot observations on satellite image}
 \usage{
-plotSat(data, zoom = NULL, location = NULL, segments = TRUE,
-  compact = TRUE, col = NULL, alpha = 1, size = 1, shape = 16,
-  states = NULL, animals = NULL, ask = TRUE, return = FALSE,
-  stateNames = NULL, projargs = NULL)
+plotSat(
+  data,
+  zoom = NULL,
+  location = NULL,
+  segments = TRUE,
+  compact = TRUE,
+  col = NULL,
+  alpha = 1,
+  size = 1,
+  shape = 16,
+  states = NULL,
+  animals = NULL,
+  ask = TRUE,
+  return = FALSE,
+  stateNames = NULL,
+  projargs = NULL
+)
 }
 \arguments{
 \item{data}{Data frame or \code{\link{momentuHMMData}} object, with necessary fields 'x' (longitudinal direction) and 'y' (latitudinal direction).  A \code{\link{momentuHMM}}, \code{\link{miHMM}}, or \code{\link{miSum}} object is also permitted, from which the data will be extracted.
@@ -46,7 +59,7 @@ plotted manually). If \code{FALSE}, the function automatically plots the map (de
 
 \item{stateNames}{Optional character vector of length \code{max(states)} indicating state names. Ignored unless \code{states} is provided.}
 
-\item{projargs}{A character string of PROJ.4 projection arguments indicating the coordinate reference system for \code{data} and \code{location} coordinates (if not longitude and latitude). A \code{\link[sp]{CRS-class}} object is also permitted. If \code{projargs} is provided, the coordinates will be internally transformed to longitude and latitude for plotting.}
+\item{projargs}{A character string of PROJ.4 projection arguments indicating the coordinate reference system for \code{data} and \code{location} coordinates (if not longitude and latitude). A \code{\link[=CRS-class]{CRS}} object is also permitted. If \code{projargs} is provided, the coordinates will be internally transformed to longitude and latitude for plotting.}
 }
 \description{
 Plot tracking data on a satellite map. This function plots coordinates in longitude

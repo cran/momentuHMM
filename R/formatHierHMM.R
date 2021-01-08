@@ -85,7 +85,7 @@ formatHierHMM <- function(data,hierStates,hierDist,
     attr(data,"coords") <- coords
     attr(data,"coordLevel") <- coordLevel
     aInd <- reForm$aInd
-    covs <- model.matrix(newformula,data)
+    covs <- stats::model.matrix(newformula,data)
     nbCovs <- ncol(covs)
     
     hFixPar <- list()
@@ -96,7 +96,7 @@ formatHierHMM <- function(data,hierStates,hierDist,
     hBetaCons <- matrix(1:(nbCovs*mixtures*nbStates*(nbStates-1)),nbCovs*mixtures,nbStates*(nbStates-1))
     dimnames(hBetaCons)<-dimnames(hFixPar$beta)
     
-    covsDelta <- model.matrix(formulaDelta,data[aInd,,drop=FALSE])
+    covsDelta <- stats::model.matrix(formulaDelta,data[aInd,,drop=FALSE])
     nbCovsDelta <- ncol(covsDelta)
     hFixPar$delta <- matrix(NA,nbCovsDelta*mixtures,nbStates-1,byrow=TRUE)
     colnames(hFixPar$delta) <- paste("state",2:nbStates)
@@ -447,7 +447,7 @@ formatHierHMM <- function(data,hierStates,hierDist,
 nbHierStates <- function(hierStates){
   
   if(!inherits(hierStates,"Node")) stop("'hierStates' must be of class Node; see ?data.tree::Node")
-  if(!("state" %in% hierStates$fieldsAll)) stop("'hierStates' must include a 'state' field")
+  if(!("state" %in% hierStates$attributesAll)) stop("'hierStates' must include a 'state' field")
   
   hdf <- data.tree::ToDataFrameTypeCol(hierStates, "state")
   if(any(is.na(hdf$state))) stop("'state' field in 'hierStates' cannot contain NAs")
@@ -471,7 +471,7 @@ nbHierStates <- function(hierStates){
 getHierDist <- function(hierDist,data,checkData){
   
   if(!inherits(hierDist,"Node")) stop("'hierDist' must be of class Node; see ?data.tree::Node")
-  if(!("dist" %in% hierDist$fieldsAll)) stop("'hierDist' must include a 'dist' field")
+  if(!("dist" %in% hierDist$attributesAll)) stop("'hierDist' must include a 'dist' field")
   if(!data.tree::AreNamesUnique(hierDist)) stop("node names in 'hierDist' must be unique")
   if(hierDist$height!=3) stop("'hierDist' hierarchy must contain 2 levels below root (i.e., hierDist$height must be 3)")
   if(!all(hierDist$Get("name",filterFun=function(x) x$level==2)==paste0("level",1:hierDist$count))) stop("hierDist level names from top to bottom should be ",paste0("'level",paste0(1:hierDist$count,"'"),collapse=", ")," (not ",paste0(paste0("'",hierDist$Get("name",filterFun=function(x) x$level==2),"'"),collapse=", "),")")
@@ -555,7 +555,7 @@ checkHierFormula <- function(data,hierFormula,hierStates,hierDist,checkData,what
     }
   } else {
     if(!inherits(hierFormula,"Node")) stop(ifelse(what=="formula","'hierFormula'","'hierFormulaDelta'")," must be of class Node; see ?data.tree::Node")
-    if(!(what %in% hierFormula$fieldsAll)) stop(ifelse(what=="formula","'hierFormula'","'hierFormulaDelta'")," must include a ",ifelse(what=="formula","'formula'","'formulaDelta'")," field")
+    if(!(what %in% hierFormula$attributesAll)) stop(ifelse(what=="formula","'hierFormula'","'hierFormulaDelta'")," must include a ",ifelse(what=="formula","'formula'","'formulaDelta'")," field")
     if(!data.tree::AreNamesUnique(hierFormula)) stop("node names in ",ifelse(what=="formula","'hierFormula'","'hierFormulaDelta'")," must be unique")
     if(hierFormula$height!=2) stop(ifelse(what=="formula","'hierFormula'","'hierFormulaDelta'")," hierarchy must contain 1 level (i.e., ",ifelse(what=="formula","hierFormula","hierFormulaDelta"),"$height must be 2)")
     
@@ -649,11 +649,11 @@ mapCons <- function(hierBeta,hierDelta,fixPar,betaCons,deltaCons,hierStates,form
   
   betaRef <- rep(hierStates$Get(function(x) Aggregate(x,"state",min),filterFun=function(x) x$level==2),times=hierStates$Get("leafCount",filterFun=function(x) x$level==2))
   
-  if("betaCons" %in% hierBeta$fieldsAll){
+  if("betaCons" %in% hierBeta$attributesAll){
     what <- "hierBeta"
     field <- "betaCons"
     for(j in 1:(hierStates$height-1)){
-      covNames <- colnames(model.matrix(formula,data[which(data$level==j),]))
+      covNames <- colnames(stats::model.matrix(formula,data[which(data$level==j),]))
       covNames <- covNames[grepl(paste0("level",j,"$"),covNames) | grepl(paste0("I((level == \"",j,"\")"),covNames,fixed=TRUE)]
       nbCovs <- length(covNames)
 
@@ -664,12 +664,12 @@ mapCons <- function(hierBeta,hierDelta,fixPar,betaCons,deltaCons,hierStates,form
 
     }
   }
-  if("deltaCons" %in% hierDelta$fieldsAll){
+  if("deltaCons" %in% hierDelta$attributesAll){
     what <- "hierDelta"
     field <- "deltaCons"
     for(j in 1:(hierStates$height-1)){
       if(j>1){
-        covNames <- colnames(model.matrix(formula,data[which(data$level==paste0(j,"i")),]))
+        covNames <- colnames(stats::model.matrix(formula,data[which(data$level==paste0(j,"i")),]))
         covNames <- covNames[grepl(paste0("level",j,"i$"),covNames) | grepl(paste0("I((level == \"",j,"i\")"),covNames,fixed=TRUE)]
         nbCovs <- length(covNames)
         
@@ -678,7 +678,7 @@ mapCons <- function(hierBeta,hierDelta,fixPar,betaCons,deltaCons,hierStates,form
         naInd <- is.na(fixPar$beta[paste0(covNames,"_mix",rep(1:mixtures,each=nbCovs)),])
         bc[paste0(covNames,"_mix",rep(1:mixtures,each=nbCovs)),][naInd] <- unique(betaInd[naInd])[inits][match(betaInd[naInd],unique(betaInd[naInd]))]
       } else if(j==1){
-        covNames <- colnames(model.matrix(formulaDelta,data))
+        covNames <- colnames(stats::model.matrix(formulaDelta,data))
         nbCovs <- length(covNames)
         
         inits <- checkField(what,field,j,hierDelta,hierStates,betaRef,nbCovs,mixtures,initial=TRUE,check=check)
@@ -701,11 +701,11 @@ mapPar <- function(hierBeta,hierDelta,fixPar,betaCons,deltaCons,hierStates,formu
     beta <- fixPar$beta
     delta <- fixPar$delta
   }
-  if(field %in% hierBeta$fieldsAll){
+  if(field %in% hierBeta$attributesAll){
     beta <- fixPar$beta
     what <- "hierBeta"
     for(j in 1:(hierStates$height-1)){
-      covNames <- colnames(model.matrix(formula,data[which(data$level==j),]))
+      covNames <- colnames(stats::model.matrix(formula,data[which(data$level==j),]))
       covNames <- covNames[grepl(paste0("level",j,"$"),covNames) | grepl(paste0("I((level == \"",j,"\")"),covNames,fixed=TRUE)]
       nbCovs <- length(covNames)
       
@@ -715,13 +715,13 @@ mapPar <- function(hierBeta,hierDelta,fixPar,betaCons,deltaCons,hierStates,formu
     }
   }
   field <- ifelse(field=="beta","delta",field)
-  if(field %in% hierDelta$fieldsAll){
+  if(field %in% hierDelta$attributesAll){
     if(is.null(beta)) beta <- fixPar$beta
     delta <- fixPar$delta
     what <- "hierDelta"
     for(j in 1:(hierStates$height-1)){
       if(j>1){
-        covNames <- colnames(model.matrix(formula,data[which(data$level==paste0(j,"i")),]))
+        covNames <- colnames(stats::model.matrix(formula,data[which(data$level==paste0(j,"i")),]))
         covNames <- covNames[grepl(paste0("level",j,"i$"),covNames) | grepl(paste0("I((level == \"",j,"i\")"),covNames,fixed=TRUE)]
         nbCovs <- length(covNames)
         
@@ -729,7 +729,7 @@ mapPar <- function(hierBeta,hierDelta,fixPar,betaCons,deltaCons,hierStates,formu
         initsInd <- unique(betaCons[paste0(covNames,"_mix",rep(1:mixtures,each=nbCovs)),][which(is.na(fixPar$beta[paste0(covNames,"_mix",rep(1:mixtures,each=nbCovs)),]))])
         beta[initsInd] <- inits
       } else if(j==1){
-        covNames <- colnames(model.matrix(formulaDelta,data))
+        covNames <- colnames(stats::model.matrix(formulaDelta,data))
         nbCovs <- length(covNames)
         
         inits <- checkField(what,field,j,hierDelta,hierStates,betaRef,nbCovs,mixtures,initial=TRUE,check=check)
@@ -755,12 +755,12 @@ mapBounds <- function(hierBeta,hierDelta,fixPar,betaCons,deltaCons,hierStates,fo
   
   beta <- delta <- NULL
   
-  if(field %in% hierBeta$fieldsAll){
+  if(field %in% hierBeta$attributesAll){
     betaLower <- matrix(-Inf,nrow(fixPar$beta),ncol(fixPar$beta),dimnames = dimnames(fixPar$beta))
     betaUpper <- matrix(Inf,nrow(fixPar$beta),ncol(fixPar$beta),dimnames = dimnames(fixPar$beta))
     what <- "hierBeta"
     for(j in 1:(hierStates$height-1)){
-      covNames <- colnames(model.matrix(formula,data[which(data$level==j),]))
+      covNames <- colnames(stats::model.matrix(formula,data[which(data$level==j),]))
       covNames <- covNames[grepl(paste0("level",j,"$"),covNames) | grepl(paste0("I((level == \"",j,"\")"),covNames,fixed=TRUE)]
       nbCovs <- length(covNames)
       
@@ -777,7 +777,7 @@ mapBounds <- function(hierBeta,hierDelta,fixPar,betaCons,deltaCons,hierStates,fo
     beta <- cbind(betaLower[betaCons],betaUpper[betaCons])
   }
 
-  if(field %in% hierDelta$fieldsAll){
+  if(field %in% hierDelta$attributesAll){
     if(is.null(beta)) {
       betaLower <- matrix(-Inf,nrow(fixPar$beta),ncol(fixPar$beta),dimnames = dimnames(fixPar$beta))
       betaUpper <- matrix(Inf,nrow(fixPar$beta),ncol(fixPar$beta),dimnames = dimnames(fixPar$beta))
@@ -788,7 +788,7 @@ mapBounds <- function(hierBeta,hierDelta,fixPar,betaCons,deltaCons,hierStates,fo
     what <- "hierDelta"
     for(j in 1:(hierStates$height-1)){
       if(j>1){
-        covNames <- colnames(model.matrix(formula,data[which(data$level==paste0(j,"i")),]))
+        covNames <- colnames(stats::model.matrix(formula,data[which(data$level==paste0(j,"i")),]))
         covNames <- covNames[grepl(paste0("level",j,"i$"),covNames) | grepl(paste0("I((level == \"",j,"i\")"),covNames,fixed=TRUE)]
         nbCovs <- length(covNames)
 
@@ -797,7 +797,7 @@ mapBounds <- function(hierBeta,hierDelta,fixPar,betaCons,deltaCons,hierStates,fo
         betaLower[initsInd] <- unlist(lapply(inits,function(x) x[,1]))
         betaUpper[initsInd] <- unlist(lapply(inits,function(x) x[,2]))
       } else if(j==1){
-        covNames <- colnames(model.matrix(formulaDelta,data))
+        covNames <- colnames(stats::model.matrix(formulaDelta,data))
         nbCovs <- length(covNames)
         
         inits <- checkField(what,field,j,hierDelta,hierStates,betaRef,nbCovs,mixtures,initial=TRUE,bounds=TRUE,check=check)
@@ -818,7 +818,7 @@ getRechargeParms <- function(recharge,data,hierBeta){
   g0 <- numeric()
   theta <- numeric()
   for(j in names(recharge)){
-    tmpg0covs <- model.matrix(recharge[[j]]$g0,data)
+    tmpg0covs <- stats::model.matrix(recharge[[j]]$g0,data)
     tmpnbG0 <- ncol(tmpg0covs)
     tmpG0 <- hierBeta[[j]]$g0
     if(!is.null(tmpG0)){
@@ -830,7 +830,7 @@ getRechargeParms <- function(recharge,data,hierBeta){
     names(hierG0[[j]]) <- colnames(tmpg0covs)
     g0 <- c(g0,hierG0[[j]])
     
-    tmprecovs <- model.matrix(recharge[[j]]$theta,data)
+    tmprecovs <- stats::model.matrix(recharge[[j]]$theta,data)
     tmpnbRecovs <- ncol(tmprecovs)
     tmpTheta <- hierBeta[[j]]$theta
     if(!is.null(tmpTheta)){
@@ -887,7 +887,7 @@ mapHier <- function(beta,Pi,delta,hierBeta,hierDelta,fixPar,betaCons,deltaCons,h
   if(inherits(whierBeta,"Node")){
     what <- "hierBeta"
     for(j in 1:(hierStates$height-1)){
-      covNames <- colnames(model.matrix(formula,data[which(data$level==j),]))
+      covNames <- colnames(stats::model.matrix(formula,data[which(data$level==j),]))
       covNames <- covNames[grepl(paste0("level",j,"$"),covNames) | grepl(paste0("I((level == \"",j,"\")"),covNames,fixed=TRUE)]
       nbCovs <- length(covNames)
       if(mixtures>1) covNames <- paste0(covNames,"_mix",rep(1:mixtures,each=nbCovs))
@@ -949,7 +949,7 @@ mapHier <- function(beta,Pi,delta,hierBeta,hierDelta,fixPar,betaCons,deltaCons,h
     what <- "hierDelta"
     for(j in 1:(hierStates$height-1)){
       if(j>1){
-        covNames <- colnames(model.matrix(formula,data[which(data$level==paste0(j,"i")),]))
+        covNames <- colnames(stats::model.matrix(formula,data[which(data$level==paste0(j,"i")),]))
         covNames <- covNames[grepl(paste0("level",j,"i$"),covNames) | grepl(paste0("I((level == \"",j,"i\")"),covNames,fixed=TRUE)]
         nbCovs <- length(covNames)
         if(mixtures>1) covNames <- paste0(covNames,"_mix",rep(1:mixtures,each=nbCovs))
@@ -991,7 +991,7 @@ mapHier <- function(beta,Pi,delta,hierBeta,hierDelta,fixPar,betaCons,deltaCons,h
           }
         }
       } else if(j==1){
-        covNames <- colnames(model.matrix(formulaDelta,data))
+        covNames <- colnames(stats::model.matrix(formulaDelta,data))
         nbCovs <- length(covNames)
         if(mixtures>1) covNames <- paste0(covNames,"_mix",rep(1:mixtures,each=nbCovs))
         initsInd <- unique(deltaCons[covNames,][which(is.na(fixPar$delta[covNames,]))])

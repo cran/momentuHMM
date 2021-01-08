@@ -52,26 +52,21 @@ MIfitHMM <- function(miData, ...) {
 #' equal to the stationary distribution. See \code{\link{fitHMM}}.
 #' @param mixtures Number of mixtures for the state transition probabilities  (i.e. discrete random effects *sensu* DeRuiter et al. 2017). Default: \code{mixtures=1}.
 #' @param formulaPi Regression formula for the mixture distribution probabilities. See \code{\link{fitHMM}}.
-#' @param verbose Deprecated: please use \code{print.level} in \code{nlmPar} argument. Determines the print level of the \code{nlm} optimizer. The default value of 0 means that no
-#' printing occurs, a value of 1 means that the first and last iterations of the optimization are
-#' detailed, and a value of 2 means that each iteration of the optimization is detailed. Ignored unless \code{optMethod="nlm"}.
 #' @param nlmPar List of parameters to pass to the optimization function \code{\link[stats]{nlm}} (which should be either
 #' \code{print.level}, \code{gradtol}, \code{stepmax}, \code{steptol}, \code{iterlim}, or \code{hessian} -- see \code{nlm}'s documentation
-#' for more detail). Ignored unless \code{optMethod="nlm"}.
+#' for more detail). For \code{print.level}, the default value of 0 means that no
+#' printing occurs, a value of 1 means that the first and last iterations of the optimization are
+#' detailed, and a value of 2 means that each iteration of the optimization is detailed. Ignored unless \code{optMethod="nlm"}.
 #' @param fit \code{TRUE} if the HMM should be fitted to the data, \code{FALSE} otherwise. See \code{\link{fitHMM}}. If \code{fit=FALSE} and \code{miData} is a \code{\link{crwData}}
 #' object, then \code{MIfitHMM} returns a list containing a \code{\link{momentuHMMData}} object (if \code{nSims=1}) or, if \code{nSims>1}, a \code{\link{crwSim}} object.
 #' @param useInitial Logical indicating whether or not to use parameter estimates for the first model fit as initial values for all subsequent model fits.  
 #' If \code{ncores>1} then the first model is fit on a single core and then used as the initial values for all subsequent model fits on each core 
-#' (in this case, the progress of the initial model fit can be followed using the \code{verbose} argument). Default: FALSE. Ignored if \code{nSims<2}.
+#' (in this case, the progress of the initial model fit can be followed using the \code{print.level} option in \code{nlmPar}). Default: FALSE. Ignored if \code{nSims<2}.
 #' @param DM An optional named list indicating the design matrices to be used for the probability distribution parameters of each data 
 #' stream. See \code{\link{fitHMM}}.
-#' @param cons Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
-#' for each data stream. See \code{\link{fitHMM}}.
 #' @param userBounds An optional named list of 2-column matrices specifying bounds on the natural (i.e, real) scale of the probability 
 #' distribution parameters for each data stream. See \code{\link{fitHMM}}.
 #' @param workBounds An optional named list of 2-column matrices specifying bounds on the working scale of the probability distribution, transition probability, and initial distribution parameters. See \code{\link{fitHMM}}.
-#' @param workcons Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
-#' each data stream. See \code{\link{fitHMM}}.
 #' @param betaCons Matrix of the same dimension as \code{beta0} composed of integers identifying any equality constraints among the t.p.m. parameters. See \code{\link{fitHMM}}.
 #' @param betaRef Numeric vector of length \code{nbStates} indicating the reference elements for the t.p.m. multinomial logit link. See \code{\link{fitHMM}}. 
 #' @param deltaCons Matrix of the same dimension as \code{delta0} composed of integers identifying any equality constraints among the initial distribution working scale parameters. Ignored unless a formula is provided in \code{formulaDelta}. See \code{\link{fitHMM}}.
@@ -131,7 +126,7 @@ MIfitHMM <- function(miData, ...) {
 #' 
 #' @examples
 #' \dontshow{
-#' set.seed(5,kind="Mersenne-Twister",normal.kind="Inversion")
+#' set.seed(1,kind="Mersenne-Twister",normal.kind="Inversion")
 #' }
 #' # Don't run because it takes too long on a single core
 #' \dontrun{
@@ -196,15 +191,15 @@ MIfitHMM <- function(miData, ...) {
 #' @importFrom doParallel registerDoParallel stopImplicitCluster
 #' @importFrom foreach foreach %dopar%
 #' @importFrom doRNG %dorng%
-#' @importFrom raster getZ
+# @importFrom raster getZ
 #' @importFrom stats terms.formula
 MIfitHMM.default<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha = 0.95, na.rm = FALSE,
                    nbStates, dist, 
                    Par0, beta0 = NULL, delta0 = NULL,
                    estAngleMean = NULL, circularAngleMean = NULL,
                    formula = ~1, formulaDelta = NULL, stationary = FALSE, mixtures = 1, formulaPi = NULL,
-                   verbose = NULL, nlmPar = NULL, fit = TRUE, useInitial = FALSE,
-                   DM = NULL, cons = NULL, userBounds = NULL, workBounds = NULL, workcons = NULL, betaCons = NULL, betaRef = NULL, deltaCons = NULL,
+                   nlmPar = NULL, fit = TRUE, useInitial = FALSE,
+                   DM = NULL, userBounds = NULL, workBounds = NULL, betaCons = NULL, betaRef = NULL, deltaCons = NULL,
                    mvnCoords = NULL, stateNames = NULL, knownStates = NULL, fixPar = NULL, retryFits = 0, retrySD = NULL, optMethod = "nlm", control = list(), prior = NULL, modelName = NULL,
                    covNames = NULL, spatialCovs = NULL, centers = NULL, centroids = NULL, angleCovs = NULL, altCoordNames = NULL, 
                    method = "IS", parIS = 1000, dfSim = Inf, grid.eps = 1, crit = 2.5, scaleSim = 1, quad.ask = FALSE, force.quad = TRUE,
@@ -240,7 +235,7 @@ MIfitHMM.default<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha
       stop("Either nbStates and dist must be specified (for a regular HMM) or hierStates and hierDist must be specified (for a hierarchical HMM)")
   }
   
-  j <- NULL #gets rid of no visible binding for global variable 'j' NOTE in R cmd check
+  j <- mf <- mD <- NULL #gets rid of no visible binding for global variable NOTE in R cmd check
   
   if(poolEstimates){
     if(optMethod=="nlm" & !is.null(nlmPar$hessian)){
@@ -258,7 +253,7 @@ MIfitHMM.default<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha
       predData <- miData$crwPredict
   
       Time.name<-attr(predData,"Time.name")
-      ids = unique(predData$ID)
+      ids = as.character(unique(predData$ID))
       
       if(!is.null(covNames) | !is.null(angleCovs)){
         covNames <- unique(c(covNames,angleCovs[!(angleCovs %in% names(spatialCovs))]))
@@ -291,10 +286,12 @@ MIfitHMM.default<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha
       cat('Drawing ',nSims,' realizations from the position process using crawl... ',ifelse(ncores>1 & length(ids)>1,"","\n"),sep="")
       
       nbAnimals <- length(ids)
+      predTimes <- lapply(ids,function(x) predData[[Time.name]][which(predData$ID==x & predData$locType=="p")])
+      names(predTimes) <- ids
       registerDoParallel(cores=ncores)
-      withCallingHandlers(crwSim <- foreach(i = 1:nbAnimals, .export="crwSimulator") %dorng% {
-          cat("Simulating individual ",ids[i],"...\n",sep="")
-          crawl::crwSimulator(model_fits[[i]],predTime=predData[[Time.name]][which(predData$ID==ids[i] & predData$locType=="p")], method = method, parIS = parIS,
+      withCallingHandlers(crwSim <- foreach(mf = model_fits, i = ids, .export="crwSimulator") %dorng% {
+          cat("Simulating individual ",i,"...\n",sep="")
+          crawl::crwSimulator(mf,predTime=predTimes[[i]], method = method, parIS = parIS,
                                   df = dfSim, grid.eps = grid.eps, crit = crit, scale = scaleSim, quad.ask = ifelse(ncores>1, FALSE, quad.ask), force.quad = force.quad)
       },warning=muffleRNGwarning)
       stopImplicitCluster()
@@ -381,9 +378,9 @@ MIfitHMM.default<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha
   
   #check HMM inputs and print model message
   test<-fitHMM.momentuHMMData(miData[[ind[1]]],nbStates, dist, Par0[[ind[1]]], beta0[[ind[1]]], delta0[[ind[1]]],
-           estAngleMean, circularAngleMean, formula, formulaDelta, stationary, mixtures, formulaPi, verbose,
-           nlmPar, fit = FALSE, DM, cons,
-           userBounds, workBounds, workcons, betaCons, betaRef, deltaCons, mvnCoords, stateNames, knownStates[[ind[1]]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName)
+           estAngleMean, circularAngleMean, formula, formulaDelta, stationary, mixtures, formulaPi,
+           nlmPar, fit = FALSE, DM,
+           userBounds, workBounds, betaCons, betaRef, deltaCons, mvnCoords, stateNames, knownStates[[ind[1]]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName)
   
   # fit HMM(s)
   fits <- list()
@@ -395,9 +392,9 @@ MIfitHMM.default<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha
     cat("\rImputation ",1,"... ",sep="")
     
     fits[[1]]<-suppressMessages(fitHMM.momentuHMMData(miData[[1]],nbStates, dist, Par0[[1]], beta0[[1]], delta0[[1]],
-                                    estAngleMean, circularAngleMean, formula, formulaDelta, stationary, mixtures, formulaPi, verbose,
-                                    nlmPar, fit, DM, cons,
-                                    userBounds, workBounds, workcons, betaCons, betaRef, deltaCons, mvnCoords, stateNames, knownStates[[1]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName))
+                                    estAngleMean, circularAngleMean, formula, formulaDelta, stationary, mixtures, formulaPi,
+                                    nlmPar, fit, DM,
+                                    userBounds, workBounds, betaCons, betaRef, deltaCons, mvnCoords, stateNames, knownStates[[1]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName))
     if(retryFits>=1){
       cat("\n")
     }
@@ -409,17 +406,23 @@ MIfitHMM.default<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha
     delta0[parallelStart:nSims] <- list(tmpPar$delta)
   }
   
+  # suppress printing of optimization progress if in parallel
+  if(nSims>1 & ncores>1){
+    if(!is.null(nlmPar)) nlmPar$print.level <- 0
+    if(!is.null(control)) control$trace <- 0
+  }
+  
   registerDoParallel(cores=ncores)
   withCallingHandlers(fits[parallelStart:nSims] <-
-    foreach(j = parallelStart:nSims, .export=c("fitHMM.momentuHMMData"), .errorhandling="pass") %dorng% {
+    foreach(mD = miData[parallelStart:nSims], j = parallelStart:nSims, .export=c("fitHMM.momentuHMMData"), .errorhandling="pass") %dorng% {
       
       if(nSims>1) {
         cat("     \rImputation ",j,"... ",sep="")
       }
-      tmpFit<-suppressMessages(fitHMM.momentuHMMData(miData[[j]],nbStates, dist, Par0[[j]], beta0[[j]], delta0[[j]],
-                                      estAngleMean, circularAngleMean, formula, formulaDelta, stationary, mixtures, formulaPi, verbose,
-                                      nlmPar, fit, DM, cons,
-                                      userBounds, workBounds, workcons, betaCons, betaRef, deltaCons, mvnCoords, stateNames, knownStates[[j]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName))
+      tmpFit<-suppressMessages(fitHMM.momentuHMMData(mD,nbStates, dist, Par0[[j]], beta0[[j]], delta0[[j]],
+                                      estAngleMean, circularAngleMean, formula, formulaDelta, stationary, mixtures, formulaPi,
+                                      nlmPar, fit, DM,
+                                      userBounds, workBounds, betaCons, betaRef, deltaCons, mvnCoords, stateNames, knownStates[[j]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName))
       if(retryFits>=1) cat("\n")
       tmpFit
     } 
@@ -456,7 +459,7 @@ MIfitHMM.default<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha
 #' @importFrom doParallel registerDoParallel stopImplicitCluster
 #' @importFrom foreach foreach %dopar%
 #' @importFrom doRNG %dorng%
-#' @importFrom raster getZ
+# @importFrom raster getZ
 #' @importFrom data.tree Clone
 MIfitHMM.hierarchical<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, alpha = 0.95, na.rm = FALSE,
                        hierStates, hierDist, 
@@ -471,7 +474,7 @@ MIfitHMM.hierarchical<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, 
                        fullPost = TRUE, dfPostIS = Inf, scalePostIS = 1,thetaSamp = NULL, ...)
 {
   
-  j <- NULL #gets rid of no visible binding for global variable 'j' NOTE in R cmd check
+  j <- mf <- mD <- NULL #gets rid of no visible binding for global variable NOTE in R cmd check
   
   if(poolEstimates){
     if(optMethod=="nlm" & !is.null(nlmPar$hessian)){
@@ -523,10 +526,12 @@ MIfitHMM.hierarchical<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, 
       cat('Drawing ',nSims,' realizations from the position process using crawl... ',ifelse(ncores>1 & length(ids)>1,"","\n"),sep="")
       
       nbAnimals <- length(ids)
+      predTimes <- lapply(ids,function(x) predData[[Time.name]][which(predData$ID==x & predData$locType=="p")])
+      names(predTimes) <- ids
       registerDoParallel(cores=ncores)
-      withCallingHandlers(crwHierSim <- foreach(i = 1:nbAnimals, .export="crwSimulator") %dorng% {
-        cat("Simulating individual ",ids[i],"...\n",sep="")
-        crawl::crwSimulator(model_fits[[i]],predTime=predData[[Time.name]][which(predData$ID==ids[i] & predData$locType=="p")], method = method, parIS = parIS,
+      withCallingHandlers(crwHierSim <- foreach(mf=model_fits, i=ids, .export="crwSimulator") %dorng% {
+        cat("Simulating individual ",i,"...\n",sep="")
+        crawl::crwSimulator(mf,predTime=predTimes[[i]], method = method, parIS = parIS,
                             df = dfSim, grid.eps = grid.eps, crit = crit, scale = scaleSim, quad.ask = ifelse(ncores>1, FALSE, quad.ask), force.quad = force.quad)
       },warning=muffleRNGwarning)
       stopImplicitCluster()
@@ -670,14 +675,21 @@ MIfitHMM.hierarchical<-function(miData,nSims, ncores = 1, poolEstimates = TRUE, 
     beta0[parallelStart:nSims] <- list(tmpPar$beta)
     delta0[parallelStart:nSims] <- list(tmpPar$delta)
   }
+  
+  # suppress printing of optimization progress if in parallel
+  if(nSims>1 & ncores>1){
+    if(!is.null(nlmPar)) nlmPar$print.level <- 0
+    if(!is.null(control)) control$trace <- 0
+  }
+  
   registerDoParallel(cores=ncores)
   withCallingHandlers(fits[parallelStart:nSims] <-
-                        foreach(j = parallelStart:nSims, .export=c("fitHMM.momentuHierHMMData"), .errorhandling="pass") %dorng% {
+                        foreach(mD = miData[parallelStart:nSims], j = parallelStart:nSims, .export=c("fitHMM.momentuHierHMMData"), .errorhandling="pass") %dorng% {
                           
                           if(nSims>1) {
                             cat("     \rImputation ",j,"... ",sep="")
                           }
-                          tmpFit<-suppressMessages(fitHMM.momentuHierHMMData(miData[[j]], hierStates, hierDist, Par0[[j]], hierBeta[[j]], hierDelta[[j]],
+                          tmpFit<-suppressMessages(fitHMM.momentuHierHMMData(mD, hierStates, hierDist, Par0[[j]], hierBeta[[j]], hierDelta[[j]],
                                                               estAngleMean, circularAngleMean, hierFormula, hierFormulaDelta, mixtures, formulaPi, 
                                                               nlmPar, fit, DM, 
                                                               userBounds, workBounds, betaCons, deltaCons, mvnCoords, knownStates[[j]], fixPar, retryFits, retrySD, optMethod, control, prior, modelName))

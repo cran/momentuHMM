@@ -7,7 +7,7 @@
 #' @param col Vector or colors for the states (one color per state).
 #' @param plotCI Logical indicating whether to include confidence intervals in plots (default: FALSE)
 #' @param alpha Significance level of the confidence intervals (if \code{plotCI=TRUE}). Default: 0.95 (i.e. 95\% CIs).
-#' @param ... Additional arguments passed to \code{\link[graphics]{plot}}. These can currently include \code{cex.axis}, \code{cex.lab}, \code{cex.legend}, \code{cex.main}, \code{legend.pos}, and \code{lwd}. See \code{\link[graphics]{par}}. \code{legend.pos} can be a single keyword from the list ``bottomright'', ``bottom'', ``bottomleft'', ``left'', ``topleft'', ``top'', ``topright'', ``right'', and ``center''.
+#' @param ... Additional arguments passed to \code{graphics::plot}. These can currently include \code{cex.axis}, \code{cex.lab}, \code{cex.legend}, \code{cex.main}, \code{legend.pos}, and \code{lwd}. See \code{\link[graphics]{par}}. \code{legend.pos} can be a single keyword from the list ``bottomright'', ``bottom'', ``bottomleft'', ``left'', ``topleft'', ``top'', ``topright'', ``right'', and ``center''.
 #'
 #' @examples
 #' # m is a momentuHMM object (as returned by fitHMM), automatically loaded with the package
@@ -98,7 +98,7 @@ plotStationary.momentuHMM <- function(model, covs = NULL, col=NULL, plotCI=FALSE
       }
       covs <- reForm$covs
 
-      covsCol <- cbind(get_all_vars(newformula,data),get_all_vars(recharge$theta,data))#rownames(attr(terms(formula),"factors"))#attr(terms(formula),"term.labels")#seq(1,ncol(data))[-match(c("ID","x","y",distnames),names(data),nomatch=0)]
+      covsCol <- cbind(get_all_vars(newformula,data),get_all_vars(recharge$theta,data))#rownames(attr(stats::terms(formula),"factors"))#attr(stats::terms(formula),"term.labels")#seq(1,ncol(data))[-match(c("ID","x","y",distnames),names(data),nomatch=0)]
       if(!all(names(covsCol) %in% names(data))){
         covsCol <- covsCol[,names(covsCol) %in% names(data),drop=FALSE]
       }
@@ -117,7 +117,7 @@ plotStationary.momentuHMM <- function(model, covs = NULL, col=NULL, plotCI=FALSE
       #covs <- data.frame(covs[rep(1:nrow(covs),nlevels(model$data$level)),,drop=FALSE],level=rep(levels(model$data$level),each=nrow(covs)))
     } else covIndex <- 1:ncol(rawCovs)
     
-    nbCovs <- ncol(model.matrix(newformula,data))-1 # substract intercept column
+    nbCovs <- ncol(stats::model.matrix(newformula,data))-1 # substract intercept column
     mixtures <- model$conditions$mixtures
     
     gamInd<-(length(model$mod$estimate)-(nbCovs+1)*nbStates*(nbStates-1)*mixtures+1):(length(model$mod$estimate))-(ncol(model$covsPi)*(mixtures-1))-ifelse(nbRecovs,(nbRecovs+1)+(nbG0covs+1),0)-ncol(model$covsDelta)*(nbStates-1)*(!model$conditions$stationary)*mixtures
@@ -231,7 +231,7 @@ statPlot<-function(model,Sigma,nbStates,formula,covs,tempCovs,tmpcovs,cov,hierRe
     marg$cex <- NULL
     
     if(is.null(hierRecharge)){
-      desMat <- model.matrix(formula,data=covs)
+      desMat <- stats::model.matrix(formula,data=covs)
       probs <- stationary(model, covs=desMat)
     } else {
       if(inherits(model,"hierarchical")) covs$level <- NULL
@@ -304,7 +304,7 @@ plotCall <- function(cov,tempCovs,pr,model,nbStates,covnames,lwd,arg,col,legend.
         tmpSig <- Sigma[gamInd[unique(c(model$conditions$betaCons))],gamInd[unique(c(model$conditions$betaCons))]]
       } else {
         recharge <- expandRechargeFormulas(hierRecharge)
-        recovs <- model.matrix(recharge$theta,tempCovs)
+        recovs <- stats::model.matrix(recharge$theta,tempCovs)
         nbRecovs <- ncol(recovs)-1
         tmpSig <- Sigma[c(gamInd[unique(c(model$conditions$betaCons))],length(model$mod$estimate)-nbRecovs:0),c(gamInd[unique(c(model$conditions$betaCons))],length(model$mod$estimate)-nbRecovs:0)]
         dN<-matrix(unlist(lapply(split(tempCovs,1:nrow(tempCovs)),function(x) tryCatch(numDeriv::grad(get_stat_recharge,model$mod$estimate[c(gamInd[unique(c(model$conditions$betaCons))],length(model$mod$estimate)-nbRecovs:0)],covs=x,formula=formula,hierRecharge=hierRecharge,nbStates=nbStates,i=state,betaRef=model$conditions$betaRef,betaCons=model$conditions$betaCons,workBounds=rbind(model$conditions$workBounds$beta,model$conditions$workBounds$theta),mixture=mix,ref=ref),error=function(e) NA))),ncol=ncol(tmpSig),byrow=TRUE)

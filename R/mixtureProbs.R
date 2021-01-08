@@ -61,8 +61,8 @@ mixtureProbs <- function(m, getCI=FALSE, alpha = 0.95){
   if(mixtures==1) getCI <- FALSE
     #stop("No mixtures to assign probabilities (mixtures=1)")
   
-  if(mixtures>1) pie <- m$mle$pi
-  else pie <- matrix(1,nbAnimals,1)
+  #if(mixtures>1) pie <- m$mle$pi
+  #else pie <- matrix(1,nbAnimals,1)
   
   quantSup<-qnorm(1-(1-alpha)/2)
     
@@ -70,19 +70,16 @@ mixtureProbs <- function(m, getCI=FALSE, alpha = 0.95){
   colnames(est) <- colnames(se) <- colnames(lower) <- colnames(upper) <- paste0("mix",1:mixtures)
   rownames(est) <- rownames(se) <- rownames(lower) <- rownames(upper) <- paste0("ID:",unique(m$data$ID))
   for(k in 1:nbAnimals){
-    pInd <- which(mapply(function(x) isTRUE(all.equal(x,0)),pie[k,]))
-    if(length(pInd)){
-      pie[k,pInd] <- 1.e-100
-      pie[k,-pInd] <- pie[k,-pInd] - (1.e-100*length(pInd))/(ncol(pie)-length(pInd))
-    }
+    #pInd <- which(mapply(function(x) isTRUE(all.equal(x,0)),pie[k,]))
     ind <- which(m$data$ID==unique(m$data$ID)[k])
     tmp <- m
     tmp$data <- m$data[ind,]
     tmp$covsDelta <- m$covsDelta[k,,drop=FALSE]
     tmp$covsPi <- m$covsPi[k,,drop=FALSE]
     tmp$conditions$knownStates <- rep(NA,nrow(tmp$data))
+    tmp$conditions$fullDM <- lapply(m$conditions$fullDM,function(y) matrix(mapply(function(x){if(length(x)>1){return(x[ind])} else {return(x)}},y,SIMPLIFY = TRUE),nrow(y),ncol(y),dimnames=dimnames(y)))
     est[k,] <- get_mixProbs(tmp$mod$wpar,mod=tmp,mixture=1:mixtures)
-    est[k,pInd] <- 0
+    #est[k,pInd] <- 0
     if(getCI){
       cat("\rComputing SEs and ",alpha*100,"% CIs for individual ",unique(m$data$ID)[k],"... ",sep="")
       for(mix in 1:mixtures){
@@ -115,7 +112,7 @@ get_mixProbs <- function(optPar,mod,mixture){
   recharge <- newForm$recharge
   
   # build design matrix for t.p.m.
-  covs <- model.matrix(newformula,data)
+  covs <- stats::model.matrix(newformula,data)
   nbCovs <- ncol(covs)-1 # substract intercept column
   
   # build design matrix for recharge model
@@ -132,11 +129,11 @@ get_mixProbs <- function(optPar,mod,mixture){
     nbRecovs <- ncol(recovs)-1
     covs <- reForm$covs
     nbCovs <- ncol(covs)-1
-    recovsCol <- get_all_vars(recharge$theta,data)#rownames(attr(terms(formula),"factors"))#attr(terms(formula),"term.labels")#seq(1,ncol(data))[-match(c("ID","x","y",distnames),names(data),nomatch=0)]
+    recovsCol <- get_all_vars(recharge$theta,data)#rownames(attr(stats::terms(formula),"factors"))#attr(stats::terms(formula),"term.labels")#seq(1,ncol(data))[-match(c("ID","x","y",distnames),names(data),nomatch=0)]
     if(!all(names(recovsCol) %in% names(data))){
       recovsCol <- recovsCol[,names(recovsCol) %in% names(data),drop=FALSE]
     }
-    g0covsCol <- get_all_vars(recharge$g0,data)#rownames(attr(terms(formula),"factors"))#attr(terms(formula),"term.labels")#seq(1,ncol(data))[-match(c("ID","x","y",distnames),names(data),nomatch=0)]
+    g0covsCol <- get_all_vars(recharge$g0,data)#rownames(attr(stats::terms(formula),"factors"))#attr(stats::terms(formula),"term.labels")#seq(1,ncol(data))[-match(c("ID","x","y",distnames),names(data),nomatch=0)]
     if(!all(names(g0covsCol) %in% names(data))){
       g0covsCol <- g0covsCol[,names(g0covsCol) %in% names(data),drop=FALSE]
     }
@@ -151,7 +148,7 @@ get_mixProbs <- function(optPar,mod,mixture){
   # check arguments
   distnames<-names(dist)
   
-  #covs <- model.matrix(formula,data)
+  #covs <- stats::model.matrix(formula,data)
   nbCovs <- ncol(covs)-1
   if(!is.null(recovs)) {
     nbRecovs <- ncol(recovs)-1
@@ -171,7 +168,7 @@ get_mixProbs <- function(optPar,mod,mixture){
   dist <- lapply(dist,function(x) ifelse(grepl("cat",x),"cat",x))
   
   wpar <- expandPar(optPar,mod$conditions$optInd,mod$mod$estimate,mod$conditions$wparIndex,mod$conditions$betaCons,mod$conditions$deltaCons,nbStates,ncol(mod$covsDelta)-1,mod$conditions$stationary,nbCovs,nbRecovs+nbG0covs,mixtures,ncol(mod$covsPi)-1)
-  par <- w2n(wpar,mod$conditions$bounds,lapply(mod$conditions$fullDM,function(x) nrow(x)/nbStates),nbStates,nbCovs,mod$conditions$estAngleMean,mod$conditions$circularAngleMean,consensus,mod$conditions$stationary,mod$conditions$cons,mod$conditions$fullDM,mod$conditions$DMind,mod$conditions$workcons,nrow(mod$data),dist,mod$conditions$Bndind,nc,meanind,mod$covsDelta,mod$conditions$workBounds,mod$covsPi)
+  par <- w2n(wpar,mod$conditions$bounds,lapply(mod$conditions$fullDM,function(x) nrow(x)/nbStates),nbStates,nbCovs,mod$conditions$estAngleMean,mod$conditions$circularAngleMean,consensus,mod$conditions$stationary,mod$conditions$fullDM,mod$conditions$DMind,nrow(mod$data),dist,mod$conditions$Bndind,nc,meanind,mod$covsDelta,mod$conditions$workBounds,mod$covsPi)
   
   if(nbRecovs){
     for(i in 1:length(unique(data$ID))){
@@ -216,12 +213,17 @@ get_mixProbs <- function(optPar,mod,mixture){
   beta <- par$beta
   delta <- par$delta
   pie <- par$pi
+  pInd <- which(mapply(function(x) isTRUE(all.equal(x,0)), pie))
+  if (length(pInd)) {
+    pie[pInd] <- 1e-100
+    pie[-pInd] <- pie[-pInd] - (1e-100 * length(pInd))/(ncol(pie) - length(pInd))
+  }
   par$pi <- matrix(1,1,1)
   
   mixProbs <- lnum <- la <- numeric(mixtures)
   for(mix in 1:mixtures){
     par$beta <- beta[(mix-1)*(nbCovs+1)+1:(nbCovs+1),,drop=FALSE]
-    if(!mod$conditions$stationary) par$delta <- delta[(mix-1)*(nbCovsDelta+1)+1:(nbCovsDelta+1),,drop=FALSE]
+    if(!mod$conditions$stationary) par$delta <- delta[mix,,drop=FALSE]
     la[mix] <- nLogLike_rcpp(nbStates,as.matrix(covs),data,names(dist),dist,
                              par,
                              1,mod$conditions$zeroInflation,mod$conditions$oneInflation,mod$conditions$stationary,knownStates,mod$conditions$betaRef,1)

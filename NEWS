@@ -1,3 +1,42 @@
+momentuHMM 1.5.2 2021-01-06
+-----------------
+NEW FEATURES
+
+* Approximate individual-level random effects estimation for the state transition probabilities based on Burnham & White (2002) can now be implemented via the randomEffects function
+
+* ncores argument added to simData and simHierData for simulating individual tracks in parallel
+
+CHANGES
+
+* Viterbi algorithm for discrete random effect models (with mixtures>1) now uses individual mixture probabilities instead of overall mixture probabilities
+
+* plotPR now uses car::qqPlot for pseudo-residual qq-plots
+
+* the following packages have been moved to 'Suggests' and are now used conditionally: BB, conicfit, dplyr, expm, ggmap, ggplot2, lubridate, magrittr, matrixcalc, moveHMM, raster, and scatterplot3d. If any of these are packages needed, users will be prompted to install.
+
+* suppress 'Unknown or uninitialised column' warning in crawlWrap when obsData is an sf object
+
+* removed initial SANN optimization when using retryFits in crawlWrap
+
+* reduced worker memory pressure when running crawlWrap or MIfitHMM in parallel
+
+* deprecated cons and workcons arguments are now defunct; please use workBounds instead
+
+* deprecated verbose argument in fitHMM and MIfitHMM is now defunct; please use nlmPar instead
+
+BUG FIXES
+
+* mixtureProbs function did not properly account for individual covariates in DM argument when mixtures>1; hence estimated mixture and state probabilities were incorrect for discrete random effect models in momentuHMM <= 1.5.1 if individual covariates were included on any data stream distribution parameters
+
+* mixtureProbs function produced an error when initial distribution formula includes covariates
+
+* avoid numerical underflow in mixtureProbs when a mixture probability is zero
+
+* crawlWrap now internally deals with a long-standing bug in crawl::crwPredict when predTime argument includes prediction times before the first observation
+
+* overly restrictive check for time-varying covariates in fitHMM when stationary=TRUE
+
+
 momentuHMM 1.5.1 2020-03-04
 -----------------
 CHANGES

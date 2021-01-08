@@ -28,10 +28,8 @@ simData(
   obsPerAnimal = c(500, 1500),
   initialPosition = c(0, 0),
   DM = NULL,
-  cons = NULL,
   userBounds = NULL,
   workBounds = NULL,
-  workcons = NULL,
   betaRef = NULL,
   mvnCoords = NULL,
   stateNames = NULL,
@@ -39,7 +37,8 @@ simData(
   states = FALSE,
   retrySims = 0,
   lambda = NULL,
-  errorEllipse = NULL
+  errorEllipse = NULL,
+  ncores = 1
 )
 
 simHierData(
@@ -72,7 +71,8 @@ simHierData(
   states = FALSE,
   retrySims = 0,
   lambda = NULL,
-  errorEllipse = NULL
+  errorEllipse = NULL,
+  ncores = 1
 )
 }
 \arguments{
@@ -121,10 +121,10 @@ be included in \code{formula} and/or \code{DM}. Covariates can also be simulated
 \item{nbCovs}{Number of covariates to simulate (0 by default). Does not need to be specified if
 \code{covs} is specified. Simulated covariates are provided generic names (e.g., 'cov1' and 'cov2' for \code{nbCovs=2}) and can be included in \code{formula} and/or \code{DM}.}
 
-\item{spatialCovs}{List of \code{\link[=Raster-class]{raster}} objects for spatio-temporally referenced covariates. Covariates specified by \code{spatialCovs} are extracted from the raster 
+\item{spatialCovs}{List of \code{\link[raster]{raster}} objects for spatio-temporally referenced covariates. Covariates specified by \code{spatialCovs} are extracted from the raster 
 layer(s) based on any simulated location data (and the z values for a raster \code{\link[raster]{stack}} 
 or \code{\link[raster]{brick}}) for each time step.  If an element of \code{spatialCovs} is a raster \code{\link[raster]{stack}} or \code{\link[raster]{brick}}, 
-then z values must be set using \code{\link[raster]{setZ}} and \code{covs} must include column(s) of the corresponding z value(s) for each observation (e.g., 'time').
+then z values must be set using \code{raster::setZ} and \code{covs} must include column(s) of the corresponding z value(s) for each observation (e.g., 'time').
 The names of the raster layer(s) can be included in 
 \code{formula} and/or \code{DM}.  Note that \code{simData} usually takes longer to generate simulated data when \code{spatialCovs} is specified.}
 
@@ -189,11 +189,6 @@ Design matrices specified using formulas allow standard functions in R formulas
 (\code{\link[splines]{bs}}, \code{\link[splines]{ns}}, \code{\link[splines2]{bSpline}}, \code{\link[splines2]{cSpline}}, \code{\link[splines2]{iSpline}}, and \code{\link[splines2]{mSpline}}), 
 \code{angleFormula(cov,strength,by)} for the angle mean of circular-circular regression models, and state-specific formulas (see details). Any formula terms that are not state-specific are included on the parameters for all \code{nbStates} states.}
 
-\item{cons}{Deprecated. An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
-for each data stream. While there could be other uses, primarily intended to constrain specific parameters to be positive. For example, 
-\code{cons=list(step=c(1,2,1,1))} raises the second parameter to the second power. Default=NULL, which simply raises all parameters to 
-the power of 1. \code{cons} is ignored for any given data stream unless \code{DM} is specified.}
-
 \item{userBounds}{An optional named list of 2-column matrices specifying bounds on the natural (i.e, real) scale of the probability 
 distribution parameters for each data stream. For example, for a 2-state model using the wrapped Cauchy ('wrpcauchy') distribution for 
 a data stream named 'angle' with \code{estAngleMean$angle=TRUE)}, \code{userBounds=list(angle=matrix(c(-pi,-pi,-1,-1,pi,pi,1,1),4,2,dimnames=list(c("mean_1",
@@ -204,10 +199,6 @@ specifies (-1,1) bounds for the concentration parameters instead of the default 
 For data streams, each element of \code{workBounds} should be a k x 2 matrix with the same name of the corresponding element of 
 \code{Par}, where k is the number of parameters. For transition probability parameters, the corresponding element of \code{workBounds} must be a k x 2 matrix named ``beta'', where k=\code{length(beta)}. For initial distribution parameters, the corresponding element of \code{workBounds} must be a k x 2 matrix named ``delta'', where k=\code{length(delta)}.
 \code{workBounds} is ignored for any given data stream unless \code{DM} is also specified.}
-
-\item{workcons}{Deprecated. An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
-each data stream. Warning: use of \code{workcons} is recommended only for advanced users implementing unusual parameter constraints 
-through a combination of \code{DM}, \code{cons}, and \code{workcons}. \code{workcons} is ignored for any given data stream unless \code{DM} is specified.}
 
 \item{betaRef}{Numeric vector of length \code{nbStates} indicating the reference elements for the t.p.m. multinomial logit link. Default: NULL, in which case
 the diagonal elements of the t.p.m. are the reference. See \code{\link{fitHMM}}.}
@@ -240,6 +231,8 @@ in McClintock et al. (2015), where the components of the error ellipse for each 
 \code{runif(1,min(errorEllipse$m),max(errorEllipse$m))}, and \code{runif(1,min(errorEllipse$r),max(errorEllipse$r))}. If only a single value is provided for any of the 
 error ellipse elements, then the corresponding component is fixed to this value for each location. Only the 'step' and 'angle' data streams are subject to location measurement error;
 any other data streams are observed without error.  Ignored unless a valid distribution for the 'step' data stream is specified.}
+
+\item{ncores}{Number of cores to use for parallel processing. Default: 1 (no parallel processing).}
 
 \item{hierStates}{A hierarchical model structure \code{\link[data.tree]{Node}} for the states ('state').  See details.}
 
@@ -370,6 +363,7 @@ m <- example$m
 obsPerAnimal=c(50,100)
 data <- simData(model=m,obsPerAnimal=obsPerAnimal)
 
+\dontrun{
 # 2. Pass the parameters of the model to simulate from
 stepPar <- c(1,10,1,5,0.2,0.3) # mean_1, mean_2, sd_1, sd_2, zeromass_1, zeromass_2
 anglePar <- c(pi,0,0.5,2) # mean_1, mean_2, concentration_1, concentration_2
@@ -478,7 +472,7 @@ delta <- matrix(c(-100,100),2,1,dimnames=list(c("sexF","sexM"),"state 2"))
 data.delta<-simData(nbAnimals=2,obsPerAnimal=nObs,nbStates=2,dist=dist,Par=Par,
                     delta=delta,formulaDelta=formulaDelta,covs=cov,
                     beta=matrix(-1.5,1,2),states=TRUE)        
-                
+}                
 }
 \references{
 Cornelissen, G. 2014. Cosinor-based rhythmometry. Theoretical Biology and Medical Modelling 11:16.

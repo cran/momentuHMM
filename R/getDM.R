@@ -1,5 +1,5 @@
 #' @importFrom stats formula terms.formula
-getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInflation,oneInflation,circularAngleMean,ParChecks=TRUE,wlag=FALSE){
+getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,zeroInflation,oneInflation,circularAngleMean,ParChecks=TRUE,wlag=FALSE){
   
   distnames<-names(dist)
   fullDM <- vector('list',length(dist))
@@ -10,6 +10,8 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
   parSize<-lapply(parNames,length)
   #parCount <- vector('list',length(dist))
   lag <- 0
+  lanInd <- vector('list',length(dist))
+  names(lanInd) <- distnames
   
   for(i in distnames){
     if(is.null(DM[[i]])){
@@ -26,7 +28,7 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
       if(!zeroInflation[[i]] & "zeromass" %in% names(DM[[i]])) stop('zeromass should not be included in DM$',i)
       if(!oneInflation[[i]] & "onemass" %in% names(DM[[i]])) stop('onemass should not be included in DM$',i)
       DM[[i]]<-DM[[i]][parNames[[i]]]
-      if(any(unlist(lapply(DM[[i]],function(x) attr(terms(x),"response")!=0))))
+      if(any(unlist(lapply(DM[[i]],function(x) attr(stats::terms(x),"response")!=0))))
         stop("The response variable should not be specified in the DM formula for ",i)
       
       formulaStates <- vector('list',length(parNames[[i]]))
@@ -36,8 +38,8 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
         if(dist[[i]] %in% rwdists){
           #if(dist[[i]] %in% mvndists){
           for(k in 1:nbStates){
-            formterms<-attr(terms.formula(formulaStates[[j]][[k]]),"term.labels")
-            if(grepl("mean",j)) formulaStates[[j]][[k]] <- as.formula(paste("~ + 0 + ",paste(c(paste0(i,gsub("mean","",j),"_tm1"),formterms),collapse=" + ")))
+            formterms<-attr(stats::terms.formula(formulaStates[[j]][[k]]),"term.labels")
+            if(grepl("mean",j)) formulaStates[[j]][[k]] <- stats::as.formula(paste("~ + 0 + ",paste(c(paste0(i,gsub("mean","",j),"_tm1"),formterms),collapse=" + ")))
           }
           #}
         }
@@ -49,10 +51,10 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
         tmpCov[[j]] <- vector('list',nbStates)
         for(state in 1:nbStates){
           if(wlag) lag <- get_crwlag(formulaStates[[j]][[state]],lag)
-          tmpCov[[j]][[state]]<-model.matrix(formulaStates[[j]][[state]],data)
+          tmpCov[[j]][[state]]<-stats::model.matrix(formulaStates[[j]][[state]],data)
           if(!isFALSE(circularAngleMean[[i]])){
             if(j=="mean"){
-              if(attr(terms.formula(formulaStates[[j]][[state]]),"intercept")) tmpCov[[j]][[state]] <- tmpCov[[j]][[state]][,-1,drop=FALSE]
+              if(attr(stats::terms.formula(formulaStates[[j]][[state]]),"intercept")) tmpCov[[j]][[state]] <- tmpCov[[j]][[state]][,-1,drop=FALSE]
               cnames <- colnames(tmpCov[[j]][[state]])
               # make sure columns are arranged in sin/cos pairs
               tmpCov[[j]][[state]] <- tmpCov[[j]][[state]][,cnames[order(match(gsub("cos","",gsub("sin","",cnames)),unique(gsub("cos","",gsub("sin","",cnames)))))],drop=FALSE]
@@ -61,7 +63,7 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
           }
         }
       }
-      #} else tmpCov<-lapply(DM[[i]],function(x) model.matrix(x,data))
+      #} else tmpCov<-lapply(DM[[i]],function(x) stats::model.matrix(x,data))
       parSizeDM<-unlist(lapply(tmpCov,function(x) lapply(x,ncol)))
       tmpDM<-array(0,dim=c(parSize[[i]]*nbStates,sum(parSizeDM),nbObs))
       DMnames<-character(sum(parSizeDM))
@@ -73,6 +75,14 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
           tmpDM[(j-1)*nbStates+state,parInd+1:parSizeDM[(j-1)*nbStates+state],]<-t(tmpCov[[j]][[state]])
           DMnames[parInd+1:parSizeDM[(j-1)*nbStates+state]]<-paste0(parNames[[i]][j],"_",state,":",colnames(tmpCov[[j]][[state]]))
           parInd<-sum(parSizeDM[1:((j-1)*nbStates+state)])
+        }
+      }
+      for(j in DMnames){
+        if(grepl("langevin\\(",j)) {
+          if(!(dist[[i]] %in% rwdists)) stop("langevin() special formula can only be used for normal random walk data stream distributions")
+          if(!grepl("mean",j))
+            stop("langevin() special formula can only be used for the means of normal random walk data stream distributions")
+          lanInd[[i]] <- c(lanInd[[i]],j)
         }
       }
       #parCount[[i]]<-ncol(tmpDM)
@@ -101,7 +111,7 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
             tmpcolname <- colnames(newDM)[seq(1,length(meanind)*2-1,2)[j]]
             for(jj in 1:nbStates){
               if(DM[[i]][jj,j]!=0){
-                terms <- sort(attr(terms(stateFormulas(formula(paste0("~",DM[[i]][jj,j])),nbStates,angleMean=TRUE,data=data)[[jj]]),"term.labels"),decreasing=TRUE)
+                terms <- sort(attr(stats::terms(stateFormulas(formula(paste0("~",DM[[i]][jj,j])),nbStates,angleMean=TRUE,data=data)[[jj]]),"term.labels"),decreasing=TRUE)
                 newDM[jj,seq(1,length(meanind)*2-1,2)[j]]<-terms[1]
                 colnames(newDM)[seq(1,length(meanind)*2-1,2)[j]]<-paste0(tmpcolname,"sin")
                 newDM[jj,seq(1,length(meanind)*2-1,2)[j]+1]<-terms[2]
@@ -122,7 +132,13 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
       factorcovs<-paste0(rep(factorterms,times=unlist(lapply(data[factorterms],nlevels))),unlist(lapply(data[factorterms],levels)))
       covs<-numeric()
       for(cov in DMterms){
-        form<-formula(paste("~",cov))
+        if(grepl("langevin\\(",cov)) {
+          if(!(dist[[i]] %in% rwdists)) stop("langevin() special formula can only be used for normal random walk data stream distributions")
+          if(!all(grepl("mean",rownames(bounds[[i]])[which(apply(DM[[i]],1,function(x) any(grepl("langevin\\(",x))))])))
+            stop("langevin() special formula can only be used for the means of normal random walk data stream distributions")
+          lanInd[[i]] <- c(lanInd[[i]],cov)
+        }
+        form<-stats::formula(paste("~",cov))
         varform<-all.vars(form)
         if(!all((varform %in% names(data)) | (varform %in% factorcovs))){
           varform <- varform[(varform %in% names(data)) | (varform %in% factorcovs)]
@@ -135,14 +151,14 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
           for(j in 1:length(tmpcov)){
             tmpcovj <- gsub(factorcovs[factorvar][j],tmpcov[j],tmpcovj)
           }
-          tform <- formula(paste("~ 0 + ",tmpcovj))
+          tform <- stats::formula(paste("~ 0 + ",tmpcovj))
           if(wlag) lag <- get_crwlag(tform,lag)
-          tmpcovs<-model.matrix(tform,data)
+          tmpcovs<-stats::model.matrix(tform,data)
           tmpcovs<-tmpcovs[,which(gsub(" ","",colnames(tmpcovs)) %in% gsub(" ","",cov))]
           covs<-cbind(covs,tmpcovs)
         } else {
           if(wlag) lag <- get_crwlag(form,lag)
-          tmpcovs<-model.matrix(form,data)[,2]
+          tmpcovs<-stats::model.matrix(form,data)[,2]
           covs<-cbind(covs,tmpcovs)
         }
         if(length(tmpcovs)!=nbObs) stop("covariates cannot contain missing values")
@@ -160,6 +176,13 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
     if(length(k)){
       for(j in 1:nrow(k)){
         simpDM[[i]][[k[j,1],k[j,2]]]<-fullDM[[i]][k[j,1],k[j,2],]
+      }
+    }
+    if(!is.null(lanInd[[i]])){
+      if(is.list(DM[[i]])){
+        comment(simpDM[[i]]) <- paste0("langevin",which(grepl("langevin\\(",colnames(simpDM[[i]]))))
+      } else {
+        comment(simpDM[[i]]) <- paste0("langevin",which(apply(DM[[i]],2,function(x) any(grepl("langevin\\(",x)))))
       }
     }
   }
@@ -193,43 +216,6 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
     }
   }
   
-  if(is.null(cons)){
-    cons <- vector('list',length(distnames))
-    names(cons) <- distnames
-  } else {
-    if(!is.list(cons) | is.null(names(cons))) stop("'cons' must be a named list")
-  }
-  for(i in distnames){
-    if(is.null(cons[[i]])) cons[[i]] <- rep(1,parCount[[i]])
-  }
-  cons<-cons[distnames]
-  if(ParChecks){
-    if(any(unlist(lapply(cons,length))!=unlist(lapply(Par,length)))) 
-      stop("Length mismatch between Par and cons for: ",paste(names(which(unlist(lapply(cons,length))!=unlist(lapply(Par,length)))),collapse=", "))
-  } else {
-    if(any(unlist(lapply(cons,length))!=unlist(parCount))) 
-      stop("Length mismatch between DM and cons for: ",paste(names(which(unlist(lapply(cons,length))!=unlist(parCount))),collapse=", "))    
-  }
-  if(is.null(workcons)){
-    workcons <- vector('list',length(distnames))
-    names(workcons) <- distnames
-  } else {
-    if(!is.list(workcons) | is.null(names(workcons))) stop("'workcons' must be a named list")
-  }
-  for(i in distnames){
-    if(is.null(workcons[[i]])) workcons[[i]] <- rep(0,parCount[[i]])
-  }
-  #for(i in which(!(dist %in% "wrpcauchy"))){
-  #  workcons[[distnames[i]]]<-rep(0,ncol(simpDM[[distnames[i]]]))
-  #}
-  workcons<-workcons[distnames]
-  if(ParChecks){
-    if(any(unlist(lapply(workcons,length))!=unlist(lapply(Par,length)))) 
-      stop("Length mismatch between Par and workcons for: ",paste(names(which(unlist(lapply(workcons,length))!=unlist(lapply(Par,length)))),collapse=", "))
-  } else {
-    if(any(unlist(lapply(workcons,length))!=unlist(parCount))) 
-      stop("Length mismatch between DM and workcons for: ",paste(names(which(unlist(lapply(workcons,length))!=unlist(parCount))),collapse=", "))      
-  }
   DMind <- lapply(simpDM,function(x) all(unlist(apply(x,1,function(y) lapply(y,length)))==1))
   
   for(i in distnames){
@@ -245,13 +231,13 @@ getDM<-function(data,DM,dist,nbStates,parNames,bounds,Par,cons,workcons,zeroInfl
     rownames(simpDM[[i]]) <- rownames(bounds[[i]])
   }
   
-  return(list(fullDM=simpDM,DMind=DMind,cons=cons,workcons=workcons,lag=lag))
+  return(list(fullDM=simpDM,DMind=DMind,lag=lag))
 }
 
 get_crwlag <- function(form,clag){
   lag <- 0
-  if(length(attr(terms(form, specials="crw"),"specials")$crw)){
-    Terms <- terms(form,specials="crw")
+  if(length(attr(stats::terms(form, specials="crw"),"specials")$crw)){
+    Terms <- stats::terms(form,specials="crw")
     lag <- as.numeric(unlist(attr(prodlim::strip.terms(Terms[attr(Terms,"specials")$crw],specials="crw",arguments=list(crw=list("lag"=1))),"stripped.arguments")))
   }
   max(c(clag,lag))

@@ -72,7 +72,7 @@ get_fixParIndex <- function(Par0,beta0,delta0,fixPar,distnames,inputs,p,nbStates
     } 
   }
   
-  if(!is.null(delta0)){
+  if(!stationary && !is.null(delta0)){
     if(!nbCovsDelta & is.null(formulaDelta)){
       if(mixtures==1){
         if(length(delta0) != (nbCovsDelta+1)*nbStates)
@@ -144,7 +144,7 @@ get_fixParIndex <- function(Par0,beta0,delta0,fixPar,distnames,inputs,p,nbStates
   if(nbStates>1){
     if(!is.null(newdata)) data <- cbind(data,newdata)
     for(state in 1:(nbStates*(nbStates-1))){
-      noBeta<-which(match(colnames(model.matrix(newformula,data)),colnames(model.matrix(formulaStates[[state]],data)),nomatch=0)==0)
+      noBeta<-which(match(colnames(stats::model.matrix(newformula,data)),colnames(stats::model.matrix(formulaStates[[state]],data)),nomatch=0)==0)
       if(length(noBeta)) {
         for(mix in 1:mixtures){
           beta0$beta[noBeta+(nbCovs+1)*(mix-1),state] <- NA
@@ -165,7 +165,7 @@ get_fixParIndex <- function(Par0,beta0,delta0,fixPar,distnames,inputs,p,nbStates
       
       # if DM is not specified convert fixPar from real to working scale
       if(is.null(inputs$DM[[i]])){
-        fixPar[[i]][tmp]<-n2w(Par0[i],p$bounds,NULL,NULL,nbStates,inputs$estAngleMean,inputs$DM,DMinputs$cons,DMinputs$workcons,p$Bndind,inputs$dist)[tmp]
+        fixPar[[i]][tmp]<-n2w(Par0[i],p$bounds,NULL,NULL,nbStates,inputs$estAngleMean,inputs$DM,p$Bndind,inputs$dist)[tmp]
       } 
       wparIndex <- c(wparIndex,parindex[[i]]+tmp)
     } else {
@@ -177,7 +177,7 @@ get_fixParIndex <- function(Par0,beta0,delta0,fixPar,distnames,inputs,p,nbStates
     beta0$beta[which(is.na(beta0$beta))] <- 0
     if(length(fixPar$beta)!=length(beta0$beta)) stop("fixPar$beta must be of length ",length(beta0$beta))
     tmp <- which(!is.na(fixPar$beta))
-    if(!all(fixPar$beta == fixPar$beta[betaCons],na.rm=TRUE)) stop("fixPar$beta not consistent with betaCons")
+    if(!all(fixPar$beta == fixPar$beta[c(betaCons)],na.rm=TRUE)) stop("fixPar$beta not consistent with betaCons")
     beta0$beta[tmp]<-fixPar$beta[tmp]
     wparIndex <- c(wparIndex,parindex[["beta"]]+tmp)
     

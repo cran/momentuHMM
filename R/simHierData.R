@@ -40,7 +40,7 @@
 #'
 #' @export
 #' @importFrom stats rnorm runif rmultinom step terms.formula
-#' @importFrom raster cellFromXY getValues
+# @importFrom raster cellFromXY getValues
 #' @importFrom CircStats rvm
 #' @importFrom Brobdingnag as.brob sum
 #' @importFrom mvtnorm rmvnorm
@@ -63,7 +63,8 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
                     model=NULL,states=FALSE,
                     retrySims=0,
                     lambda=NULL,
-                    errorEllipse=NULL)
+                    errorEllipse=NULL,
+                    ncores=1)
 {
   
   ##############################
@@ -106,8 +107,6 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     estAngleMean<-model$conditions$estAngleMean
     circularAngleMean<-model$conditions$circularAngleMean
     DM <- model$conditions$DM
-    cons <- model$conditions$cons
-    workcons <- model$conditions$workcons
     betaRef <- model$conditions$betaRef
     zeroInflation <- model$conditions$zeroInflation
     oneInflation <- model$conditions$oneInflation
@@ -131,8 +130,6 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
         if(!isFALSE(circularAngleMean[[i]])){
           names(Par[[i]]) <- unique(gsub("cos","",gsub("sin","",colnames(model$conditions$fullDM[[i]]))))
         } else names(Par[[i]])<-colnames(model$conditions$fullDM[[i]])
-        #cons[[i]]<-rep(1,length(cons[[i]]))
-        #workcons[[i]]<-rep(0,length(workcons[[i]]))
       }
     }
     for(i in distnames[which(dist %in% angledists)]){
@@ -140,8 +137,6 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
         estAngleMean[[i]]<-TRUE
         userBounds[[i]]<-rbind(matrix(rep(c(-pi,pi),nbStates),nbStates,2,byrow=TRUE),userBounds[[i]])
         workBounds[[i]]<-rbind(matrix(rep(c(-Inf,Inf),nbStates),nbStates,2,byrow=TRUE),workBounds[[i]])
-        cons[[i]] <- c(rep(1,nbStates),cons[[i]])
-        workcons[[i]] <- c(rep(0,nbStates),workcons[[i]])
         if(!is.null(DM[[i]])){
           Par[[i]] <- c(rep(0,nbStates),Par[[i]])
           if(is.list(DM[[i]])){
@@ -200,7 +195,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
       if(length(covsCol)){
         for(jj in 1:length(covsCol)){
           cov<-covsCol[jj]
-          form<-formula(paste("~",cov))
+          form<-stats::formula(paste("~",cov))
           varform<-all.vars(form)
           if(any(varform %in% factorcovs) && !all(varform %in% factorterms)){
             factorvar<-factorcovs %in% (varform[!(varform %in% factorterms)])
@@ -237,8 +232,6 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     
     #if(!is.null(workBounds$beta)) stop("'workBounds$beta' cannot be specified; use 'hierBeta' instead")
     #if(!is.null(workBounds$delta)) stop("'workBounds$delta' cannot be specified; use 'hierDelta' instead")
-    
-    cons <- workcons <- NULL
     
     distnames <- names(dist)
     
@@ -304,7 +297,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     else estAngleMean[[i]]<-FALSE
   }
   
-  inputs <- checkInputs(nbStates,dist,Par,estAngleMean,circularAngleMean,zeroInflation,oneInflation,DM,userBounds,cons,workcons,stateNames,checkInflation = TRUE)
+  inputs <- checkInputs(nbStates,dist,Par,estAngleMean,circularAngleMean,zeroInflation,oneInflation,DM,userBounds,stateNames,checkInflation = TRUE)
   p <- inputs$p
   parSize <- p$parSize
   bounds <- p$bounds
@@ -320,6 +313,10 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     if(is.null(mvnCoords)){
       if(!("step" %in% distnames)) stop("spatialCovs can only be included when 'step' distribution is specified") 
       else if(!(inputs$dist[["step"]] %in% stepdists)) stop("spatialCovs can only be included when valid 'step' distributions are specified") 
+    }
+    if (!requireNamespace("raster", quietly = TRUE)) {
+      stop("Package \"raster\" needed for spatial covariates. Please install it.",
+              call. = FALSE)
     }
     for(j in 1:nbSpatialCovs){
       if(!inherits(spatialCovs[[j]],c("RasterLayer","RasterBrick","RasterStack"))) stop("spatialCovs$",spatialcovnames[j]," must be of class 'RasterLayer', 'RasterStack', or 'RasterBrick'")
@@ -341,7 +338,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     if(length(obsPerLevel)!=nbAnimals) stop("obsPerLevel must be a list of length ",nbAnimals," where each element is a hierarchical Node")
     for(i in 1:length(obsPerLevel)){
       if(!inherits(obsPerLevel[[i]],"Node")) stop("obsPerLevel for individual ",i," must be a hierarchical Node")
-      if(!("obs" %in% obsPerLevel[[i]]$fieldsAll)) stop("'obsPerLevel' for individual ",i," must include a 'obs' field")
+      if(!("obs" %in% obsPerLevel[[i]]$attributesAll)) stop("'obsPerLevel' for individual ",i," must include a 'obs' field")
       if(!all(obsPerLevel[[i]]$Get("name",filterFun=function(x) x$level==2) %in% hierDist$Get("name",filterFun=function(x) x$level==2))) stop("'obsPerLevel' level types for individual ",i," can only include ",paste0(hierDist$Get("name",filterFun=function(x) x$level==2),collapse = ", "))
       #if(!all(obsPerLevel[[i]]$Get("name",filterFun=function(x) x$level==2) %in% paste0("level",1:obsPerLevel[[i]]$count))) stop("'obsPerLevel' level types for individual ",i," can only include ",paste0(paste0("level",1:obsPerLevel[[i]]$count),collapse = ", "))
       tmpObs <- data.tree::Clone(obsPerLevel[[i]])
@@ -357,7 +354,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     }
   } else {
     if(!inherits(obsPerLevel,"Node")) stop("obsPerLevel must be a hierarchical Node")
-    if(!("obs" %in% obsPerLevel$fieldsAll)) stop("'obsPerLevel' must include a 'obs' field")
+    if(!("obs" %in% obsPerLevel$attributesAll)) stop("'obsPerLevel' must include a 'obs' field")
     if(!all(obsPerLevel$Get("name",filterFun=function(x) x$level==2) %in% hierDist$Get("name",filterFun=function(x) x$level==2))) stop("'obsPerLevel' level types can only include ",paste0(hierDist$Get("name",filterFun=function(x) x$level==2),collapse = ", "))
     #if(!all(obsPerLevel$Get("name",filterFun=function(x) x$level==2) %in% paste0("level",1:obsPerLevel$count))) stop("'obsPerLevel' level types can only include ",paste0(paste0("level",1:obsPerLevel[[i]]$count),collapse = ", "))
     tmpObs <- data.tree::Clone(obsPerLevel)
@@ -407,7 +404,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     }
   } else {
     if(!inherits(nbHierCovs,"Node")) stop("'nbHierCovs' must be of class Node; see ?data.tree::Node")
-    if(!("nbCovs" %in% nbHierCovs$fieldsAll)) stop("'nbHierCovs' must include a 'nbCovs' field")
+    if(!("nbCovs" %in% nbHierCovs$attributesAll)) stop("'nbHierCovs' must include a 'nbCovs' field")
     if(!data.tree::AreNamesUnique(nbHierCovs)) stop("node names in 'nbHierCovs' must be unique")
     if(nbHierCovs$height!=2) stop("'nbHierCovs' hierarchy must contain 1 level")
     
@@ -580,7 +577,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
       else centerNames <- paste0(rep(rownames(centers),each=2),".",rep(c("dist","angle"),length(centerInd)))
       centerCovs <- data.frame(matrix(NA,nrow=sum(allNbObs),ncol=length(centerInd)*2,dimnames=list(NULL,centerNames)))
     }  
-  } else centerNames <- NULL
+  } else centerNames <- centerCovs <- NULL
   
   centroidInd<-NULL
   if(!is.null(centroids)){
@@ -599,7 +596,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     centroidCovs <- data.frame(matrix(NA,nrow=sum(allNbObs),ncol=length(centroidNames),dimnames=list(NULL,centroidNames)))
     centroidInd <- length(centroidNames)/2
     #}  
-  } else centroidNames <- NULL
+  } else centroidNames <- centroidCovs <- NULL
   
   if(!is.null(model) & length(centerInd)){
     cInd <- which(!(colnames(allCovs) %in% centerNames))
@@ -674,8 +671,8 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
   rwInd <- any(unlist(dist) %in% rwdists)
   
   #if(is.null(formula)) {
-  #  if(allNbCovs) formula <- formula(paste0("~",paste0(c(colnames(allCovs),spatialcovnames),collapse="+")))
-  #  else formula <- formula(~1)
+  #  if(allNbCovs) formula <- stats::formula(paste0("~",paste0(c(colnames(allCovs),spatialcovnames),collapse="+")))
+  #  else formula <- stats::formula(~1)
   #}
   
   if(length(all.vars(formula)))
@@ -774,7 +771,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
       beta0 <- list(beta=beta)
   } else beta0 <- beta
   
-  nbBetaCovs <- ncol(model.matrix(newformula,tmpCovs))
+  nbBetaCovs <- ncol(stats::model.matrix(newformula,tmpCovs))
   
   if(is.null(beta0$beta)){
     beta0$beta <- matrix(rnorm(nbStates*(nbStates-1)*nbBetaCovs*mixtures)[inputHierHMM$betaCons],nrow=nbBetaCovs*mixtures)
@@ -792,12 +789,12 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
   }
   if(nbStates>1){
     for(state in 1:(nbStates*(nbStates-1))){
-      noBeta<-which(match(colnames(model.matrix(newformula,tmpCovs)),colnames(model.matrix(formulaStates[[state]],tmpCovs)),nomatch=0)==0)
+      noBeta<-which(match(colnames(stats::model.matrix(newformula,tmpCovs)),colnames(stats::model.matrix(formulaStates[[state]],tmpCovs)),nomatch=0)==0)
       if(length(noBeta)) beta0$beta[noBeta,state] <- 0
     }
   }
   
-  covsPi <- model.matrix(formPi,tmpCovs)
+  covsPi <- stats::model.matrix(formPi,tmpCovs)
   nbCovsPi <- ncol(covsPi)-1
   if(!nbCovsPi & is.null(formulaPi)){
     if(is.null(beta0$pi)){
@@ -815,7 +812,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
                  mixtures-1,"columns."))
   }
   
-  covsDelta <- model.matrix(formDelta,tmpCovs)
+  covsDelta <- stats::model.matrix(formDelta,tmpCovs)
   nbCovsDelta <- ncol(covsDelta)-1
   # initial state distribution
   if(is.null(delta)) {
@@ -864,7 +861,10 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     ###########################
     ## Loop over the animals ##
     ###########################
-    for (zoo in 1:nbAnimals) {
+    registerDoParallel(cores=ncores)
+    withCallingHandlers(simDat <- foreach(zoo=1:nbAnimals,.combine='comb') %dorng% {
+      
+      message("\r        Simulating individual ",zoo,"... ",sep="")
       
       # number of observations for animal zoo
       nbObs <- allNbObs[zoo]
@@ -923,22 +923,22 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
             subCovs[[j]] <- formatRecharge(nbStates,formula,betaRef,data=subCovs,par=list(g0=wng0,theta=wntheta))$newdata[[j]]
           }
         }
-        DMcov <- model.matrix(newformula,subCovs)
+        DMcov <- stats::model.matrix(newformula,subCovs)
         
         # format parameters
-        DMinputs<-getDM(subCovs,inputs$DM,inputs$dist,nbStates,p$parNames,p$bounds,Par,cons,workcons,zeroInflation,oneInflation,inputs$circularAngleMean)
+        DMinputs<-getDM(subCovs,inputs$DM,inputs$dist,nbStates,p$parNames,p$bounds,Par,zeroInflation,oneInflation,inputs$circularAngleMean)
         fullDM <- DMinputs$fullDM
         DMind <- DMinputs$DMind
-        wpar <- n2w(Par,bounds,beta0,deltaB,nbStates,inputs$estAngleMean,inputs$DM,DMinputs$cons,DMinputs$workcons,p$Bndind,inputs$dist)
+        wpar <- n2w(Par,bounds,beta0,deltaB,nbStates,inputs$estAngleMean,inputs$DM,p$Bndind,inputs$dist)
         if(any(!is.finite(wpar))) stop("Scaling error. Check initial parameter values and bounds.")
         
         ncmean <- get_ncmean(distnames,fullDM,inputs$circularAngleMean,nbStates)
         nc <- ncmean$nc
         meanind <- ncmean$meanind
         
-        covsDelta <- model.matrix(formDelta,subCovs[1,,drop=FALSE])
-        covsPi <- model.matrix(formPi,subCovs[1,,drop=FALSE])
-        fullsubPar <- w2n(wpar,bounds,parSize,nbStates,nbBetaCovs-1,inputs$estAngleMean,inputs$circularAngleMean,inputs$consensus,stationary=FALSE,DMinputs$cons,fullDM,DMind,DMinputs$workcons,nbObs,inputs$dist,p$Bndind,nc,meanind,covsDelta,wworkBounds,covsPi)
+        covsDelta <- stats::model.matrix(formDelta,subCovs[1,,drop=FALSE])
+        covsPi <- stats::model.matrix(formPi,subCovs[1,,drop=FALSE])
+        fullsubPar <- w2n(wpar,bounds,parSize,nbStates,nbBetaCovs-1,inputs$estAngleMean,inputs$circularAngleMean,inputs$consensus,stationary=FALSE,fullDM,DMind,nbObs,inputs$dist,p$Bndind,nc,meanind,covsDelta,wworkBounds,covsPi)
         
         pie <- fullsubPar$pi
         
@@ -992,8 +992,8 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
           for(j in rechargeNames){
             subCovs[1,j] <- formatRecharge(nbStates,formula,betaRef,data=tmpSubSpatCovs,par=list(g0=wng0,theta=wntheta))$newdata[[j]][1]
           }
-          #g0 <- model.matrix(recharge$g0,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE])) %*% wng0
-          #subCovs[1,"recharge"] <- g0 #+ model.matrix(recharge$theta,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE])) %*% wntheta
+          #g0 <- stats::model.matrix(recharge$g0,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE])) %*% wng0
+          #subCovs[1,"recharge"] <- g0 #+ stats::model.matrix(recharge$theta,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE])) %*% wntheta
         }
         
         for(i in distnames){
@@ -1010,16 +1010,16 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
         }
         
         # get max crw lag
-        maxlag <- getDM(cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE]),inputs$DM,inputs$dist,nbStates,p$parNames,p$bounds,Par,cons,workcons,zeroInflation,oneInflation,inputs$circularAngleMean,wlag=TRUE)$lag
+        maxlag <- getDM(cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE]),inputs$DM,inputs$dist,nbStates,p$parNames,p$bounds,Par,zeroInflation,oneInflation,inputs$circularAngleMean,wlag=TRUE)$lag
         
-        covsPi <- model.matrix(formPi,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE]))
+        covsPi <- stats::model.matrix(formPi,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE]))
         pie <- mlogit(wnpi,covsPi,nbCovsPi,1,mixtures)
         
         # assign individual to mixture
         if(mixtures>1) mix[zoo] <- sample.int(mixtures,1,prob=pie)
         
-        g <- model.matrix(newformula,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE])) %*% wnbeta[(mix[zoo]-1)*nbBetaCovs+1:nbBetaCovs,]
-        covsDelta <- model.matrix(formDelta,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE]))
+        g <- stats::model.matrix(newformula,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE])) %*% wnbeta[(mix[zoo]-1)*nbBetaCovs+1:nbBetaCovs,]
+        covsDelta <- stats::model.matrix(formDelta,cbind(subCovs[1,,drop=FALSE],subSpatialcovs[1,,drop=FALSE]))
         
         delta0 <- mlogit(deltaB[(mix[zoo]-1)*(nbCovsDelta+1)+1:(nbCovsDelta+1),,drop=FALSE],covsDelta,nbCovsDelta,1,nbStates)
         #delta0 <- c(rep(0,nbCovsDelta+1),deltaB[(mix[zoo]-1)*(nbCovsDelta+1)+1:(nbCovsDelta+1),])
@@ -1063,7 +1063,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
           #  if(nbSpatialCovs | length(centerInd) | length(centroidInd) | length(angleCovs) | rwInd){
           #    subCovs[k,which(colnames(subCovs)!="level")] <- subCovs[k-1,which(colnames(subCovs)!="level"),drop=FALSE]
           #    subSpatialcovs[k,] <- subSpatialcovs[k-1,,drop=FALSE]
-          #    g <- model.matrix(newformula,cbind(subCovs[k,,drop=FALSE],subSpatialcovs[k,,drop=FALSE])) %*% wnbeta[(mix[zoo]-1)*nbBetaCovs+1:nbBetaCovs,]
+          #    g <- stats::model.matrix(newformula,cbind(subCovs[k,,drop=FALSE],subSpatialcovs[k,,drop=FALSE])) %*% wnbeta[(mix[zoo]-1)*nbBetaCovs+1:nbBetaCovs,]
           #  } else {
           #    g <- gFull[k,,drop=FALSE]
           #  }
@@ -1084,10 +1084,10 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
             
             if(nbSpatialCovs |  length(centerInd) | length(centroidInd) | length(angleCovs) | rwInd){
               # format parameters
-              DMinputs<-getDM(cbind(subCovs[k-maxlag:0,,drop=FALSE],subSpatialcovs[k-maxlag:0,,drop=FALSE]),inputs$DM,inputs$dist,nbStates,p$parNames,p$bounds,Par,cons,workcons,zeroInflation,oneInflation,inputs$circularAngleMean,wlag=TRUE)
+              DMinputs<-getDM(cbind(subCovs[k-maxlag:0,,drop=FALSE],subSpatialcovs[k-maxlag:0,,drop=FALSE]),inputs$DM,inputs$dist,nbStates,p$parNames,p$bounds,Par,zeroInflation,oneInflation,inputs$circularAngleMean,wlag=TRUE)
               fullDM <- DMinputs$fullDM
               DMind <- DMinputs$DMind
-              wpar <- n2w(Par,bounds,beta0,deltaB,nbStates,inputs$estAngleMean,inputs$DM,DMinputs$cons,DMinputs$workcons,p$Bndind,inputs$dist)
+              wpar <- n2w(Par,bounds,beta0,deltaB,nbStates,inputs$estAngleMean,inputs$DM,p$Bndind,inputs$dist)
               if(any(!is.finite(wpar))) stop("Scaling error. Check initial parameter values and bounds.")
               
               nc <- meanind <- vector('list',length(distnames))
@@ -1105,7 +1105,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
                   }
                 }
               }
-              subPar <- w2n(wpar,bounds,parSize,nbStates,nbBetaCovs-1,inputs$estAngleMean,inputs$circularAngleMean,inputs$consensus,stationary=FALSE,DMinputs$cons,fullDM,DMind,DMinputs$workcons,1,inputs$dist,p$Bndind,nc,meanind,covsDelta,wworkBounds,covsPi)
+              subPar <- w2n(wpar,bounds,parSize,nbStates,nbBetaCovs-1,inputs$estAngleMean,inputs$circularAngleMean,inputs$consensus,stationary=FALSE,fullDM,DMind,1,inputs$dist,p$Bndind,nc,meanind,covsDelta,wworkBounds,covsPi)
             } else {
               subPar <- lapply(fullsubPar[distnames],function(x) x[,k,drop=FALSE])#fullsubPar[,k,drop=FALSE]
             }
@@ -1252,15 +1252,15 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
                   tmpSubCovs <- cbind(subCovs[k,,drop=FALSE],subSpatialcovs[k,,drop=FALSE])
                   if(subCovs[k+1,"level"]==gsub("level","",recLevelNames[j]) & match(subCovs[k,"level"],levels(subCovs$level))>=match(subCovs[k+1,"level"],levels(subCovs$level))){
                     tmpSubCovs$level <- subCovs[k+1,"level"]
-                    subCovs[k+1,rechargeNames[j]] <- subCovs[k,rechargeNames[j]] + model.matrix(recharge$theta,tmpSubCovs)[,colInd[[j]],drop=FALSE] %*% wntheta[colInd[[j]]]
+                    subCovs[k+1,rechargeNames[j]] <- subCovs[k,rechargeNames[j]] + stats::model.matrix(recharge$theta,tmpSubCovs)[,colInd[[j]],drop=FALSE] %*% wntheta[colInd[[j]]]
                   } else if(match(subCovs[k,"level"],levels(subCovs$level))>match(subCovs[k+1,"level"],levels(subCovs$level))){
                     #tmpSubCovs$level <- subCovs[k,"level"]
-                    subCovs[k+1,rechargeNames[j]] <- subCovs[k,rechargeNames[j]] + model.matrix(recharge$theta,tmpSubCovs)[,colInd[[j]],drop=FALSE] %*% wntheta[colInd[[j]]]
+                    subCovs[k+1,rechargeNames[j]] <- subCovs[k,rechargeNames[j]] + stats::model.matrix(recharge$theta,tmpSubCovs)[,colInd[[j]],drop=FALSE] %*% wntheta[colInd[[j]]]
                   } else {
                     subCovs[k+1,rechargeNames[j]] <- subCovs[k,rechargeNames[j]]
                   }
                 }
-                #subCovs[k+1,"recharge"] <- subCovs[k,"recharge"] + model.matrix(recharge$theta,cbind(subCovs[k,,drop=FALSE],subSpatialcovs[k,,drop=FALSE])) %*% wntheta
+                #subCovs[k+1,"recharge"] <- subCovs[k,"recharge"] + stats::model.matrix(recharge$theta,cbind(subCovs[k,,drop=FALSE],subSpatialcovs[k,,drop=FALSE])) %*% wntheta
               }
               for(i in distnames){
                 if(dist[[i]] %in% rwdists){
@@ -1268,7 +1268,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
                   else if(dist[[i]] %in% c("rw_mvnorm3")) subCovs[k+1,paste0(i,c(".x_tm1",".y_tm1",".z_tm1"))] <- X[k+1,]
                 }
               }
-              g <- model.matrix(newformula,cbind(subCovs[k+1,,drop=FALSE],subSpatialcovs[k+1,,drop=FALSE])) %*% wnbeta[(mix[zoo]-1)*nbBetaCovs+1:nbBetaCovs,]
+              g <- stats::model.matrix(newformula,cbind(subCovs[k+1,,drop=FALSE],subSpatialcovs[k+1,,drop=FALSE])) %*% wnbeta[(mix[zoo]-1)*nbBetaCovs+1:nbBetaCovs,]
             } else {
               g <- gFull[k+1,,drop=FALSE]
             }
@@ -1283,10 +1283,10 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
           }
         }
       #}
-      allStates <- c(allStates,Z)
-      if(nbSpatialCovs>0) {
-        allSpatialcovs <- rbind(allSpatialcovs,subSpatialcovs)
-      }
+      #allStates <- c(allStates,Z)
+      #if(nbSpatialCovs>0) {
+      #  allSpatialcovs <- rbind(allSpatialcovs,subSpatialcovs)
+      #}
       
       if("angle" %in% distnames){ 
         if(inputs$dist[["angle"]] %in% angledists & ("step" %in% distnames))
@@ -1319,57 +1319,75 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
       }
       for(j in angleCovs[which(angleCovs %in% names(subCovs))])
         allCovs[cumNbObs[zoo]+1:nbObs,j] <- subCovs[,j]
-      if(length(centerInd)) centerCovs[cumNbObs[zoo]+1:nbObs,] <- subCovs[,centerNames]
-      if(length(centroidInd)) centroidCovs[cumNbObs[zoo]+1:nbObs,] <- subCovs[,centroidNames]
-      data <- rbind(data,d)
+      if(length(centerInd)) centerCovs <- subCovs[,centerNames]
+      if(length(centroidInd)) centroidCovs <- subCovs[,centroidNames]
+      #data <- rbind(data,d)
+      return(list(data=d,allCovs=allCovs[cumNbObs[zoo]+1:nbObs,,drop=FALSE],allSpatialcovs=subSpatialcovs,centerCovs=centerCovs,centroidCovs=centroidCovs,allStates=matrix(Z,ncol=1)))
     }
+    ,warning=muffleRNGwarning)
+    stopImplicitCluster()
     
     if(nbCovs>0)
-      data <- cbind(data,allCovs)
+      simDat$data <- cbind(simDat$data,simDat$allCovs)
     
     if(nbSpatialCovs>0){
-      colnames(allSpatialcovs)<-spatialcovnames
+      colnames(simDat$allSpatialcovs)<-spatialcovnames
       for(j in spatialcovnames){
         if(any(raster::is.factor(spatialCovs[[j]]))){
-          allSpatialcovs[[j]] <- factor(allSpatialcovs[[j]],levels=unique(unlist(raster::levels(spatialCovs[[j]]))))
+          simDat$allSpatialcovs[[j]] <- factor(simDat$allSpatialcovs[[j]],levels=unique(unlist(raster::levels(spatialCovs[[j]]))))
         }
       }
-      data <- cbind(data,allSpatialcovs)
+      simDat$data <- cbind(simDat$data,simDat$allSpatialcovs)
     }
     
     if(length(centerInd)){
-      data <- cbind(data,centerCovs)
-      for(j in which(grepl(".angle",names(data)))){
-        if(names(data[j]) %in% centerNames)
-          class(data[[j]]) <- c(class(data[[j]]), "angle")
+      simDat$data <- cbind(simDat$data,simDat$centerCovs)
+      for(j in which(grepl(".angle",names(simDat$data)))){
+        if(names(simDat$data[j]) %in% centerNames)
+          class(simDat$data[[j]]) <- c(class(simDat$data[[j]]), "angle")
       }
     }
     
     if(length(centroidInd)){
-      data <- cbind(data,centroidCovs)
-      for(j in which(grepl(".angle",names(data)))){
-        if(names(data[j]) %in% centroidNames)
-          class(data[[j]]) <- c(class(data[[j]]), "angle")
+      simDat$data <- cbind(simDat$data,simDat$centroidCovs)
+      for(j in which(grepl(".angle",names(simDat$data)))){
+        if(names(simDat$data[j]) %in% centroidNames)
+          class(simDat$data[[j]]) <- c(class(simDat$data[[j]]), "angle")
       }
     }
     
     # include states sequence in the data
     if(states)
-      data <- cbind(data,states=allStates)
+      simDat$data <- cbind(simDat$data,states=simDat$allStates)
     
     for(i in distnames){
       if(inputs$dist[[i]] %in% angledists)
-        class(data[[i]]) <- c(class(data[[i]]), "angle")
+        class(simDat$data[[i]]) <- c(class(simDat$data[[i]]), "angle")
     }
     
     for(i in angleCovs){
-      class(data[[i]]) <- c(class(data[[i]]), "angle")
+      class(simDat$data[[i]]) <- c(class(simDat$data[[i]]), "angle")
+    }
+    
+    if("angle" %in% distnames){ 
+      if(inputs$dist[["angle"]] %in% angledists & ("step" %in% distnames))
+        if(inputs$dist[["step"]] %in% stepdists){
+          coordNames <- c("x","y")
+        }
+    } else if("step" %in% distnames){
+      if(inputs$dist[["step"]] %in% stepdists){
+        coordNames <- c("x","y")
+      }    
+    } else if(!is.null(mvnCoords)){
+      coordNames <- paste0(mvnCoords,c(".x",".y"))
+    } else {
+      coordNames <- NULL
     }
     
     if(!is.null(coordNames)){
-      attr(data,'coords') <- coordNames
-      attr(data,"coordLevel") <- coordLevel
-      data[which(data$level!=coordLevel),coordNames] <- NA
+      attr(simDat$data,'coords') <- coordNames
+      attr(simDat$data,"coordLevel") <- coordLevel
+      simDat$data[which(simDat$data$level!=coordLevel),coordNames] <- NA
       #tmpNames <- colnames(data)[-which(colnames(data)=="ID")]
       #prepDat <- prepData(data,coordNames = paste0(mvnCoords,c(".x",".y")))
       #data$step <- prepDat$step
@@ -1380,7 +1398,7 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     }
     
     # account for observation error (if any)
-    out<-simObsData(momentuHierHMMData(data),lambda,errorEllipse,coordLevel)
+    out<-simObsData(momentuHierHMMData(simDat$data),lambda,errorEllipse,coordLevel)
     
     message("DONE")
     return(out)
@@ -1388,7 +1406,8 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
     simCount <- 0
     cat("Attempting to simulate tracks within spatial extent(s) of raster layers(s). Press 'esc' to force exit from 'simHierData'\n",sep="")
     while(simCount < retrySims){
-      cat("\r    Attempt ",simCount+1," of ",retrySims,"...",sep="")
+      if(ncores==1) cat("    Attempt ",simCount+1," of ",retrySims,"...\n",sep="")
+      else cat("\r    Attempt ",simCount+1," of ",retrySims,"...",sep="")
       tmp<-suppressMessages(tryCatch(simHierData(nbAnimals,hierStates,hierDist,
                                              Par,hierBeta,hierDelta,
                                              hierFormula,hierFormulaDelta,mixtures,formulaPi,
@@ -1406,17 +1425,21 @@ simHierData <- function(nbAnimals=1,hierStates,hierDist,
                                              model,states,
                                              retrySims=0,
                                              lambda,
-                                             errorEllipse),error=function(e) e))
+                                             errorEllipse,
+                                             ncores),error=function(e) e))
       if(inherits(tmp,"error")){
+        if(ncores==1) cat("FAILED\n")
         if(grepl("Try expanding the extent of the raster",tmp)) simCount <- simCount+1
         else stop(tmp)
       } else {
         simCount <- retrySims
-        cat("DONE\n")
+        if(ncores>1) message("\nDONE")
+        else message("DONE")
         return(tmp)
       }
     }
-    cat("FAILED\n")
+    if(ncores>1) message("\nFAILED")
+    else message("FAILED")
     stop(tmp)
   }
 }

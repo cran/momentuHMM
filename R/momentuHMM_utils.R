@@ -126,9 +126,21 @@ RWdata <- function(dist,data,knownStates){
   newdata
 }
 
-#' @importFrom dplyr lag
+# @importFrom dplyr lag
 crw <- function(x_tm1,lag=1){
+  for(pkg in c("dplyr")){
+    if (!requireNamespace(pkg, quietly = TRUE)) {
+      stop("Package \"",pkg,"\" needed for crw function to work. Please install it.",
+           call. = FALSE)
+    }
+  }
   dplyr::lag(x_tm1,n=lag-1,default=x_tm1[1])-dplyr::lag(x_tm1,n=lag,default=x_tm1[1])
+}
+
+radian <- function(degree) 
+{
+  radian <- degree * (pi/180)
+  radian
 }
 
 # startup message
@@ -151,6 +163,11 @@ print.momentuHMM.version <- function()
 muffleRNGwarning <- function(w) {
   if(any(grepl("Foreach loop \\(doParallelMC\\) had changed the current RNG type: RNG was restored to same type, next state",w)))
     invokeRestart("muffleWarning")
+}
+
+# .combine function for multiple rbinds in foreach
+comb <- function(x, ...) {  
+    mapply(rbind,x,...,SIMPLIFY=FALSE)
 }
 
 #' @importFrom MASS ginv
@@ -195,8 +212,6 @@ delta_bc <- function(m){
       ####### compatability hack for change to MIcombine in momentuHMM >= 1.4.3 ######
       if(is.null(m$conditions$optInd)){
         for(i in names(m$conditions$dist)){
-          m$conditions$cons[[i]]<-rep(1,length(m$conditions$cons[[i]]))
-          m$conditions$workcons[[i]]<-rep(0,length(m$conditions$workcons[[i]]))
           m$conditions$workBounds[[i]]<-matrix(c(-Inf,Inf),nrow(m$conditions$workBounds[[i]]),2,byrow=TRUE)
         }
       }

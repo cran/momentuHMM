@@ -24,7 +24,7 @@ plotSpatialCov(
 \item{data}{Data frame or \code{\link{momentuHMMData}} object, with necessary fields 'x' (longitudinal direction) and 'y' (latitudinal direction).  A \code{\link{momentuHMM}}, \code{\link{miHMM}}, or \code{\link{miSum}} object is also permitted, from which the data will be extracted.
 If \code{states=NULL} and a \code{momentuHMM}, \code{miHMM}, or \code{miSum} object is provided, the decoded states are automatically plotted.}
 
-\item{spatialCov}{\code{\link[=RasterLayer-class]{RasterLayer}} object on which to plot the location data}
+\item{spatialCov}{\code{\link[raster]{raster}} object of the \code{RasterLayer} class on which to plot the location data}
 
 \item{segments}{\code{TRUE} if segments should be plotted between the observations (default),
 \code{FALSE} otherwise.}
@@ -34,11 +34,11 @@ otherwise (default).}
 
 \item{col}{Palette of colours to use for the dots and segments. If not specified, uses default palette.}
 
-\item{alpha}{Transparency argument for \code{\link{geom_point}}.}
+\item{alpha}{Transparency argument for \code{\link[ggplot2]{geom_point}}.}
 
-\item{size}{Size argument for \code{\link{geom_point}}.}
+\item{size}{Size argument for \code{\link[ggplot2]{geom_point}}.}
 
-\item{shape}{Shape argument for \code{\link{geom_point}}. If \code{states} is provided, then \code{shape} must either be a scalar or a vector of length \code{length(unique(states))}.
+\item{shape}{Shape argument for \code{\link[ggplot2]{geom_point}}. If \code{states} is provided, then \code{shape} must either be a scalar or a vector of length \code{length(unique(states))}.
 If \code{states=NULL}, then \code{shape} must either be a scalar or a vector consisting of a value for each individual to be plotted.}
 
 \item{states}{A sequence of integers, corresponding to the decoded states for these data. If
@@ -58,6 +58,7 @@ plotted manually). If \code{FALSE}, the function automatically plots the map (de
 Plot tracking data over a raster layer.
 }
 \examples{
+\dontrun{
 stepDist <- "gamma"
 angleDist <- "vm"
 
@@ -70,5 +71,5 @@ data <- simData(nbAnimals=2,nbStates=2,dist=list(step=stepDist,angle=angleDist),
                 obsPerAnimal=225,states=TRUE)
 
 plotSpatialCov(data,forest,states=data$states)
-
+}
 }

@@ -27,15 +27,12 @@ MIfitHMM(miData, ...)
   stationary = FALSE,
   mixtures = 1,
   formulaPi = NULL,
-  verbose = NULL,
   nlmPar = NULL,
   fit = TRUE,
   useInitial = FALSE,
   DM = NULL,
-  cons = NULL,
   userBounds = NULL,
   workBounds = NULL,
-  workcons = NULL,
   betaCons = NULL,
   betaRef = NULL,
   deltaCons = NULL,
@@ -173,34 +170,26 @@ equal to the stationary distribution. See \code{\link{fitHMM}}.}
 
 \item{formulaPi}{Regression formula for the mixture distribution probabilities. See \code{\link{fitHMM}}.}
 
-\item{verbose}{Deprecated: please use \code{print.level} in \code{nlmPar} argument. Determines the print level of the \code{nlm} optimizer. The default value of 0 means that no
-printing occurs, a value of 1 means that the first and last iterations of the optimization are
-detailed, and a value of 2 means that each iteration of the optimization is detailed. Ignored unless \code{optMethod="nlm"}.}
-
 \item{nlmPar}{List of parameters to pass to the optimization function \code{\link[stats]{nlm}} (which should be either
 \code{print.level}, \code{gradtol}, \code{stepmax}, \code{steptol}, \code{iterlim}, or \code{hessian} -- see \code{nlm}'s documentation
-for more detail). Ignored unless \code{optMethod="nlm"}.}
+for more detail). For \code{print.level}, the default value of 0 means that no
+printing occurs, a value of 1 means that the first and last iterations of the optimization are
+detailed, and a value of 2 means that each iteration of the optimization is detailed. Ignored unless \code{optMethod="nlm"}.}
 
 \item{fit}{\code{TRUE} if the HMM should be fitted to the data, \code{FALSE} otherwise. See \code{\link{fitHMM}}. If \code{fit=FALSE} and \code{miData} is a \code{\link{crwData}}
 object, then \code{MIfitHMM} returns a list containing a \code{\link{momentuHMMData}} object (if \code{nSims=1}) or, if \code{nSims>1}, a \code{\link{crwSim}} object.}
 
 \item{useInitial}{Logical indicating whether or not to use parameter estimates for the first model fit as initial values for all subsequent model fits.
 If \code{ncores>1} then the first model is fit on a single core and then used as the initial values for all subsequent model fits on each core 
-(in this case, the progress of the initial model fit can be followed using the \code{verbose} argument). Default: FALSE. Ignored if \code{nSims<2}.}
+(in this case, the progress of the initial model fit can be followed using the \code{print.level} option in \code{nlmPar}). Default: FALSE. Ignored if \code{nSims<2}.}
 
 \item{DM}{An optional named list indicating the design matrices to be used for the probability distribution parameters of each data 
 stream. See \code{\link{fitHMM}}.}
-
-\item{cons}{Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying a power to raise parameters corresponding to each column of the design matrix 
-for each data stream. See \code{\link{fitHMM}}.}
 
 \item{userBounds}{An optional named list of 2-column matrices specifying bounds on the natural (i.e, real) scale of the probability 
 distribution parameters for each data stream. See \code{\link{fitHMM}}.}
 
 \item{workBounds}{An optional named list of 2-column matrices specifying bounds on the working scale of the probability distribution, transition probability, and initial distribution parameters. See \code{\link{fitHMM}}.}
-
-\item{workcons}{Deprecated: please use \code{workBounds} instead. An optional named list of vectors specifying constants to add to the regression coefficients on the working scale for 
-each data stream. See \code{\link{fitHMM}}.}
 
 \item{betaCons}{Matrix of the same dimension as \code{beta0} composed of integers identifying any equality constraints among the t.p.m. parameters. See \code{\link{fitHMM}}.}
 
@@ -321,7 +310,7 @@ and all arguments related to \code{\link[crawl]{crwSimulator}}, \code{\link[craw
 }
 \examples{
 \dontshow{
-set.seed(5,kind="Mersenne-Twister",normal.kind="Inversion")
+set.seed(1,kind="Mersenne-Twister",normal.kind="Inversion")
 }
 # Don't run because it takes too long on a single core
 \dontrun{

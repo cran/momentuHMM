@@ -72,7 +72,7 @@ print.momentuHMM <- function(x,...)
       if(is.null(m$conditions$formulaPi)) {
         formPi <- ~1
       } else formPi <- m$conditions$formulaPi
-      if(!length(attr(terms.formula(formPi),"term.labels")) & is.null(m$conditions$formulaPi)){
+      if(!length(attr(stats::terms.formula(formPi),"term.labels")) & is.null(m$conditions$formulaPi)){
         tmp <- m$mle$pi[1,]
         names(tmp) <- paste0("mix",1:m$conditions$mixtures)
         print(tmp)
@@ -90,6 +90,19 @@ print.momentuHMM <- function(x,...)
       cat("---------------------------------------------------------------\n")
       print(m$CIreal$gamma$est)    
     }
+      
+    if(inherits(m,"randomEffects")){
+      cat("\n")
+      cat("Transition probability random effect parameters:\n")
+      cat("------------------------------------------------\n")
+      muParms <- matrix(unlist(lapply(m$varcomp,function(x) x$mu$est)),ncol=length(m$stateNames)*(length(m$stateNames)-1))
+      colnames(muParms) <- colnames(m$mle$beta)
+      rownames(muParms) <- paste0("mu:",names(m$varcomp[[1]]$mu$est))
+      sigParms <- matrix(unlist(lapply(m$varcomp,function(x) x$sigma$est)),ncol=length(m$stateNames)*(length(m$stateNames)-1))
+      colnames(sigParms) <- colnames(m$mle$beta)
+      rownames(sigParms) <- "sigma"
+      print(rbind(muParms,sigParms))
+    }
   
     cat("\n")
     cat("Initial distribution:\n")
@@ -98,7 +111,7 @@ print.momentuHMM <- function(x,...)
     if(is.null(m$conditions$formulaDelta)) {
       formDelta <- ~1
     } else formDelta <- m$conditions$formulaDelta
-    if((!length(attr(terms.formula(formDelta),"term.labels")) & is.null(m$conditions$formulaDelta)) & !(m$conditions$stationary & length(attr(terms.formula(m$conditions$formula),"term.labels"))>0)){
+    if((!length(attr(stats::terms.formula(formDelta),"term.labels")) & is.null(m$conditions$formulaDelta)) & !(m$conditions$stationary & length(attr(terms.formula(m$conditions$formula),"term.labels"))>0)){
       tmp <- m$mle$delta[seq(1,nrow(m$mle$delta),nrow(m$mle$delta)/m$conditions$mixtures),]
       if(m$conditions$mixtures==1) rownames(tmp)<-NULL
       else rownames(tmp) <- paste0("mix",1:m$conditions$mixtures)
@@ -155,7 +168,7 @@ print.momentuHierHMM <- function(x,...)
       if(is.null(m$conditions$formulaPi)) {
         formPi <- ~1
       } else formPi <- m$conditions$formulaPi
-      if(!length(attr(terms.formula(formPi),"term.labels")) & is.null(m$conditions$formulaPi)){
+      if(!length(attr(stats::terms.formula(formPi),"term.labels")) & is.null(m$conditions$formulaPi)){
         tmp <- m$mle$pi[1,]
         names(tmp) <- paste0("mix",1:m$conditions$mixtures)
         print(tmp)

@@ -2,8 +2,8 @@ Package: momentuHMM
 Type: Package
 Title: Maximum Likelihood Analysis of Animal Movement Behavior Using
         Multivariate Hidden Markov Models
-Version: 1.5.4
-Date: 2021-09-02
+Version: 1.5.5
+Date: 2022-10-18
 Depends: R (>= 2.10)
 Author: Brett McClintock, Theo Michelot
 Maintainer: Brett McClintock <brett.mcclintock@noaa.gov>
@@ -11,20 +11,20 @@ Description: Extended tools for analyzing telemetry data using generalized hidde
 License: GPL-3
 LazyData: TRUE
 Imports: Rcpp, doParallel, foreach, numDeriv, CircStats, crawl (>=
-        2.2.1), mvtnorm, sp, MASS, Brobdingnag, doRNG, rlang
+        2.2.1), mvtnorm, sp, MASS, Brobdingnag, doRNG, rlang, raster
 LinkingTo: Rcpp, RcppArmadillo
 Suggests: testthat, setRNG, splines, splines2 (>= 0.2.8), R.rsp,
-        raster, conicfit, ggplot2, ggmap, lubridate, dplyr, magrittr,
+        conicfit, ggplot2, ggmap, lubridate, dplyr, magrittr,
         scatterplot3d, BB, expm, matrixcalc, moveHMM, extraDistr,
         data.tree (>= 1.0.0), geosphere, mitools, doFuture, future,
         car, survival, prodlim, nleqslv, qdapRegex
-RoxygenNote: 7.1.1
+RoxygenNote: 7.2.1
 Encoding: UTF-8
 NeedsCompilation: yes
 VignetteBuilder: R.rsp
 URL: https://github.com/bmcclintock/momentuHMM,
         https://github.com/bmcclintock/momentuHMM/discussions
 BugReports: https://github.com/bmcclintock/momentuHMM/issues
-Packaged: 2021-09-02 21:50:17 UTC; brettmcclintock
+Packaged: 2022-10-18 20:29:24 UTC; brettmcclintock
 Repository: CRAN
-Date/Publication: 2021-09-03 04:30:02 UTC
+Date/Publication: 2022-10-18 20:52:35 UTC
